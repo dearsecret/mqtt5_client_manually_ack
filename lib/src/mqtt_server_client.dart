@@ -120,4 +120,6 @@ class MqttServerClient extends MqttClient {
     connectionHandler.onBadCertificate = onBadCertificate;
     return await super.connect(username, password);
   }
+
+  MqttPublishingManager? get publishingManager => super.publishingManager;
 }
