@@ -4,5 +4,6 @@
 .dart-tool/
 .idea/
 .vscode/
+test/
 build/
 *.pubspec.lock
