@@ -364,18 +364,17 @@ class MqttClient {
   /// If the client is not disconnected this method will have no effect
   /// unless the [force] parameter is set to true, otherwise
   /// auto reconnect will try indefinitely to reconnect to the broker.
-  void doAutoReconnect({bool force = false}) {
+  Future<void> doAutoReconnect({bool force = false}) async {
     if (!autoReconnect) {
       MqttLogger.log(
         'MqttClient::doAutoReconnect - auto reconnect is not set, exiting',
       );
       return;
     }
-
     if (connectionStatus!.state != MqttConnectionState.connected || force) {
       final wasConnected =
           connectionStatus!.state == MqttConnectionState.connected;
-      clientEventBus!.fire(
+      await connectionHandler!.autoReconnect(
         MqttAutoReconnect(userRequested: true, wasConnected: wasConnected),
       );
     }
