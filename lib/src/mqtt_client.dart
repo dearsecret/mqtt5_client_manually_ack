@@ -22,7 +22,9 @@ typedef AutoReconnectCallback = FutureOr<void> Function();
 typedef AutoReconnectCompleteCallback = void Function();
 
 /// The client failed connection attempt callback
-typedef FailedConnectionAttemptCallback = void Function(int attemptNumber);
+// typedef FailedConnectionAttemptCallback = void Function(int attemptNumber);
+typedef FailedConnectionAttemptCallback =
+    FutureOr<void> Function(int attemptNumber);
 
 /// A client class for interacting with MQTT Data Packets.
 /// Do not instantiate this class directly, instead instantiate

@@ -182,7 +182,7 @@ class MqttSynchronousServerConnectionHandler
             MqttLogger.log(
               'MqttSynchronousMqttServerConnectionHandler::calling onFailedConnectionAttempt',
             );
-            onFailedConnectionAttempt!(connectionAttempts);
+            await onFailedConnectionAttempt!(connectionAttempts);
           }
         }
       }

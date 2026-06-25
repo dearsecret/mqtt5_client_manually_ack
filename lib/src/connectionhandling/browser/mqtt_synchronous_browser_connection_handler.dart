@@ -104,7 +104,7 @@ class MqttSynchronousBrowserConnectionHandler
             MqttLogger.log(
               'MqttSynchronousMqttBrowserConnectionHandler::calling onFailedConnectionAttempt',
             );
-            onFailedConnectionAttempt!(connectionAttempts);
+            await onFailedConnectionAttempt!(connectionAttempts);
           }
         }
       }
