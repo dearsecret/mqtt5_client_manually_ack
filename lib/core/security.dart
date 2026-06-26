@@ -3,19 +3,19 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-enum SecureKey {
+enum AppSecurity {
   encrypt(isProtected: true),
   device(isProtected: true),
   access(isProtected: false),
   refresh(isProtected: false);
 
   final bool isProtected;
-  const SecureKey({required this.isProtected});
+  const AppSecurity({required this.isProtected});
   bool get canWrite => !isProtected;
 }
 
-class SecureUtils {
-  SecureUtils._();
+class AppSecureUtils {
+  AppSecureUtils._();
 
   static List<int> get generateRandomKey => Hive.generateSecureKey();
   static String get generateRandStrKey => base64Encode(generateRandomKey);
@@ -28,6 +28,8 @@ class FSS {
   static final List<Completer<void>> _queue = [];
   static String? _cachedAccessToken;
 
+  String? get accessToken => _cachedAccessToken;
+
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
@@ -36,7 +38,7 @@ class FSS {
   );
 
   bool _isAllowed(String key) =>
-      SecureKey.values.any((e) => e.name == key && e.canWrite);
+      AppSecurity.values.any((e) => e.name == key && e.canWrite);
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
       _enqueue(() => _runWithRetry(action, retryCount: retryCount));
@@ -51,27 +53,27 @@ class FSS {
   );
 
   Future<String?> get getRefreshToken async =>
-      _execute(() => _storage.read(key: SecureKey.refresh.name));
+      _execute(() => _storage.read(key: AppSecurity.refresh.name));
 
   Future<String?> get getAccessToken async {
     if (_cachedAccessToken != null) return _cachedAccessToken;
     return _execute(() async {
-      final token = await _storage.read(key: SecureKey.access.name);
+      final token = await _storage.read(key: AppSecurity.access.name);
       _cachedAccessToken = token;
       return token;
     });
   }
 
   Future<List<int>> get getEncryptionKey => _getOrInitSecureData(
-    SecureKey.encrypt,
+    AppSecurity.encrypt,
     (str) => base64Url.decode(str),
     () => base64UrlEncode(Hive.generateSecureKey()),
   );
 
   Future<String> get getDeviceId => _getOrInitSecureData(
-    SecureKey.device,
+    AppSecurity.device,
     (str) => str,
-    () => SecureUtils.generateRandStrKey,
+    () => AppSecureUtils.generateRandStrKey,
   );
 
   /// 파이프라인: 선입선출(FIFO) 완벽 보장
@@ -108,7 +110,7 @@ class FSS {
   }
 
   Future<T> _getOrInitSecureData<T>(
-    SecureKey key,
+    AppSecurity key,
     T Function(String) decoder,
     String Function() generator,
   ) async {
@@ -130,13 +132,13 @@ class FSS {
         final backup = await _storage.readAll();
         try {
           await _executeBatch(data, isWrite: true);
-          if (data.containsKey(SecureKey.access.name)) {
-            _cachedAccessToken = data[SecureKey.access.name];
+          if (data.containsKey(AppSecurity.access.name)) {
+            _cachedAccessToken = data[AppSecurity.access.name];
           }
           return true;
         } catch (e) {
           await _executeBatch(backup, isWrite: true);
-          _cachedAccessToken = backup[SecureKey.access.name];
+          _cachedAccessToken = backup[AppSecurity.access.name];
           rethrow;
         }
       }, retryCount: retryCount);
@@ -151,10 +153,10 @@ class FSS {
           final keysToDelete = Map.fromEntries(
             backup.entries.where(
               (e) =>
-                  !SecureKey.values
+                  !AppSecurity.values
                       .firstWhere(
                         (s) => s.name == e.key,
-                        orElse: () => SecureKey.access,
+                        orElse: () => AppSecurity.access,
                       )
                       .isProtected,
             ),
@@ -165,7 +167,7 @@ class FSS {
             _cachedAccessToken = null;
           } catch (e) {
             await _executeBatch(backup, isWrite: true);
-            _cachedAccessToken = backup[SecureKey.access.name];
+            _cachedAccessToken = backup[AppSecurity.access.name];
             rethrow;
           }
         }, retryCount: retryCount);
