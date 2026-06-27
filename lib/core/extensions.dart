@@ -1,3 +1,5 @@
+part of '../core.dart';
+
 extension SortedListExtension on List<int> {
   /// 정렬 상태를 유지하며 값을 삽입합니다.
   /// 이미 존재하는 값은 무시합니다.
