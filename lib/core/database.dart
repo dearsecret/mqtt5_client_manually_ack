@@ -1,259 +1,85 @@
 part of '../core.dart';
 
-enum AppSecurity {
-  encrypt(isProtected: true),
-  device(isProtected: true),
-  access(isProtected: false),
-  refresh(isProtected: false);
-
-  final bool isProtected;
-  const AppSecurity({required this.isProtected});
-  bool get canWrite => !isProtected;
-
-  static List<int> get generateRandomKey => Hive.generateSecureKey();
-  static String get generateRandStrKey => base64Encode(generateRandomKey);
-  static List<int> decode(String strKey) => base64Url.decode(strKey);
-}
-
-class FSS {
-  FSS._();
-  static final FSS instance = FSS._();
-  static final List<Completer<void>> _queue = [];
-  static String? _cachedAccessToken;
-
-  String? get accessToken => _cachedAccessToken;
-
-  final _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-    iOptions: IOSOptions(
-      accessibility: KeychainAccessibility.first_unlock_this_device,
-    ),
-  );
-
-  bool _isAllowed(String key) =>
-      AppSecurity.values.any((e) => e.name == key && e.canWrite);
-
-  Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
-      _enqueue(() => _runWithRetry(action, retryCount: retryCount));
-
-  Future<void> _executeBatch(
-    Map<String, String> data, {
-    bool isWrite = true,
-  }) async => await Future.wait(
-    isWrite
-        ? data.entries.map((e) => _storage.write(key: e.key, value: e.value))
-        : data.keys.map((key) => _storage.delete(key: key)),
-  );
-
-  Future<String?> get getRefreshToken async =>
-      _execute(() => _storage.read(key: AppSecurity.refresh.name));
-
-  Future<String?> get getAccessToken async {
-    if (_cachedAccessToken != null) return _cachedAccessToken;
-    return _execute(() async {
-      final token = await _storage.read(key: AppSecurity.access.name);
-      _cachedAccessToken = token;
-      return token;
-    });
-  }
-
-  Future<List<int>> get getEncryptionKey => _getOrInitSecureData(
-    AppSecurity.encrypt,
-    (str) => base64Url.decode(str),
-    () => base64UrlEncode(Hive.generateSecureKey()),
-  );
-
-  Future<String> get getDeviceId => _getOrInitSecureData(
-    AppSecurity.device,
-    (str) => str,
-    () => AppSecurity.generateRandStrKey,
-  );
-
-  /// 파이프라인: 선입선출(FIFO) 완벽 보장
-  Future<T> _enqueue<T>(Future<T> Function() action) async {
-    final completer = Completer<void>();
-    final previous = _queue.isNotEmpty ? _queue.last : null;
-    _queue.add(completer);
-
-    if (previous != null) await previous.future;
-    try {
-      return await action();
-    } finally {
-      completer.complete();
-      _queue.remove(completer);
-    }
-  }
-
-  /// 재시도 엔진: 지수 백오프 기반 최대 retryCount만큼 시도
-  Future<T> _runWithRetry<T>(
-    Future<T> Function() action, {
-    int retryCount = 0,
-    Duration initialDelay = const Duration(milliseconds: 200),
-  }) async {
-    int attempts = 0;
-    while (true) {
-      try {
-        return await action();
-      } catch (e) {
-        if (attempts >= retryCount) rethrow; // 횟수 초과 시 종료
-        attempts++;
-        await Future.delayed(initialDelay * (1 << (attempts - 1)));
-      }
-    }
-  }
-
-  Future<T> _getOrInitSecureData<T>(
-    AppSecurity key,
-    T Function(String) decoder,
-    String Function() generator,
-  ) async {
-    return _execute(() async {
-      String? storedData = await _storage.read(key: key.name);
-      if (storedData != null) {
-        return decoder(storedData);
-      }
-      String newData = generator();
-      await _storage.write(key: key.name, value: newData);
-      return decoder(newData);
-    });
-  }
-
-  Future<bool> writeAll(Map<String, String> data, {int retryCount = 0}) async {
-    return _execute(() async {
-      if (data.keys.any((key) => !_isAllowed(key))) return false;
-      return _runWithRetry(() async {
-        final backup = await _storage.readAll();
-        try {
-          await _executeBatch(data, isWrite: true);
-          if (data.containsKey(AppSecurity.access.name)) {
-            _cachedAccessToken = data[AppSecurity.access.name];
-          }
-          return true;
-        } catch (e) {
-          await _executeBatch(backup, isWrite: true);
-          _cachedAccessToken = backup[AppSecurity.access.name];
-          rethrow;
-        }
-      }, retryCount: retryCount);
-    });
-  }
-
-  Future<bool> clearAll({int retryCount = 0}) async {
-    return _execute(() async {
-      try {
-        await _runWithRetry(() async {
-          final backup = await _storage.readAll();
-          final keysToDelete = Map.fromEntries(
-            backup.entries.where(
-              (e) =>
-                  !AppSecurity.values
-                      .firstWhere(
-                        (s) => s.name == e.key,
-                        orElse: () => AppSecurity.access,
-                      )
-                      .isProtected,
-            ),
-          );
-
-          try {
-            await _executeBatch(keysToDelete, isWrite: false);
-            _cachedAccessToken = null;
-          } catch (e) {
-            await _executeBatch(backup, isWrite: true);
-            _cachedAccessToken = backup[AppSecurity.access.name];
-            rethrow;
-          }
-        }, retryCount: retryCount);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    });
-  }
-}
-
-extension SafeBoxCollection on BoxCollection {
-  /// 정의된 CollectionBox 에 접근할 수 있습니다.
-  Future<CollectionBox<V>> openSafeBox<V>(AppCollection col, String boxName) {
-    if (!col.boxes.contains(boxName)) throw Exception("$boxName에 접근할 수 없습니다.");
-    return openBox<V>(boxName);
-  }
-}
-
-enum AppCollection {
-  configs(boxes: {'settings', 'logs', 'user'}),
-  chats(boxes: {'room', 'room_idx', 'msg'});
-
-  final Set<String> boxes;
-  const AppCollection({required this.boxes});
-
-  Future<T> execute<T>(
-    FutureOr<T> Function(BoxCollection collection) action, {
-    Function()? onComplete,
-    bool readOnly = false,
-  }) => AppDatabase.instance.execute(
-    this,
-    action,
-    onComplete: onComplete,
-    readOnly: readOnly,
-  );
-}
-
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
-
-  final Map<AppCollection, BoxCollection> _caches = {};
+  late final Directory _appDir, _rootCollectionsDir;
+  late List<int> _encryptionKey;
+  late List<String> _collections;
   Completer<void>? _initCompleter;
 
-  Future<void> init({retryCount = 0}) async {
-    if (_initCompleter != null && _initCompleter!.isCompleted) return;
+  Directory get appDirectory => _appDir;
+  bool get isCollectionEmpty => _collections.isEmpty;
+  List<String> get collectionList => _collections;
+
+  /// FSS에서 생성된 키 : await FSS.instance.getEncryptionKey;
+  Future<void> initialize(List<int> key, {int retryCount = 0}) async {
+    if (_initCompleter?.isCompleted ?? false) return;
     _initCompleter ??= Completer();
     try {
-      await Hive.initFlutter();
-      await getCollection(AppCollection.configs);
-      if (!_initCompleter!.isCompleted) _initCompleter!.complete();
-    } catch (e) {
-      _initCompleter = null;
-      if (retryCount < 3) {
-        await Future.delayed(Duration(seconds: 1));
-        return init(retryCount: retryCount + 1);
+      if (retryCount == 0) {
+        _encryptionKey = key;
       } else {
-        throw Exception("데이터베이스 초기화에 실패하였습니다.");
+        await Future.delayed(Duration(seconds: retryCount));
       }
+      await Hive.initFlutter();
+      final appDir = await getApplicationDocumentsDirectory();
+      _rootCollectionsDir = Directory('${appDir.path}/collections');
+      if (!await _rootCollectionsDir.exists()) {
+        await _rootCollectionsDir.create(recursive: true);
+        _collections = [];
+      } else {
+        _collections = await getExistingCollectionNames();
+      }
+      _initCompleter!.complete();
+    } catch (e) {
+      // 4. 재시도 로직
+      if (retryCount < 3) {
+        return await initialize(key, retryCount: retryCount + 1);
+      }
+      _initCompleter!.completeError(e);
+      throw Exception("데이터베이스 초기화 실패: $e");
     }
   }
 
-  Future<BoxCollection> getCollection(AppCollection collection) async {
-    if (_caches.containsKey(collection)) return _caches[collection]!;
-    if (collection != AppCollection.configs) await _initCompleter?.future;
-    final key = await FSS.instance.getEncryptionKey;
-    final boxCollection = await BoxCollection.open(
-      collection.name,
-      collection.boxes,
-      path: './',
-      key: HiveAesCipher(key),
+  Future<BoxCollection> openCollection(
+    String colName,
+    Set<String> boxes,
+  ) async {
+    final colPath = '${_rootCollectionsDir.path}/$colName';
+    await Directory(colPath).create(recursive: true);
+    return await BoxCollection.open(
+      colName,
+      boxes,
+      path: colPath,
+      key: HiveAesCipher(_encryptionKey),
     );
-    _caches[collection] = boxCollection;
-    return boxCollection;
   }
 
-  Future<T> execute<T>(
-    AppCollection appCollection,
-    FutureOr<T> Function(BoxCollection collection) action, {
-    Function()? onComplete,
-    bool readOnly = false,
-  }) async {
-    final collection = await getCollection(appCollection);
-    late T result;
-    await collection.transaction(
-      () async {
-        result = await action(collection);
-      },
-      boxNames: appCollection.boxes.toList(),
-      readOnly: readOnly,
-    );
-    onComplete?.call();
-    return result;
+  Future<List<String>> getExistingCollectionNames() async {
+    final dir = _rootCollectionsDir;
+    if (!await dir.exists()) return [];
+    return dir
+        .listSync()
+        .whereType<Directory>()
+        .map((dir) => dir.path.split('/').last)
+        .toList();
+  }
+
+  Future<List<String>> getBoxesInCollection(String colName) async {
+    final colDir = Directory('${_rootCollectionsDir.path}/$colName');
+    if (!await colDir.exists()) return [];
+    return colDir
+        .listSync()
+        .where((entity) => entity is File && entity.path.endsWith('.hive'))
+        .map((entity) => entity.uri.pathSegments.last.replaceAll('.hive', ''))
+        .toList();
+  }
+
+  Future<void> resetAll() async {
+    if (await _rootCollectionsDir.exists()) {
+      await _rootCollectionsDir.delete(recursive: true);
+      await _rootCollectionsDir.create();
+    }
   }
 }
