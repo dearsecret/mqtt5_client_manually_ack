@@ -2,11 +2,13 @@ part of '../core.dart';
 
 class AppDatabase {
   AppDatabase._();
+
   static final AppDatabase instance = AppDatabase._();
+  Completer<void>? _initCompleter;
+
   late final Directory _appDir, _rootCollectionsDir;
   late List<int> _encryptionKey;
   late List<String> _collections;
-  Completer<void>? _initCompleter;
 
   Directory get appDirectory => _appDir;
   bool get isCollectionEmpty => _collections.isEmpty;
@@ -17,11 +19,7 @@ class AppDatabase {
     if (_initCompleter?.isCompleted ?? false) return;
     _initCompleter ??= Completer();
     try {
-      if (retryCount == 0) {
-        _encryptionKey = key;
-      } else {
-        await Future.delayed(Duration(seconds: retryCount));
-      }
+      if (retryCount == 0) _encryptionKey = key;
       await Hive.initFlutter();
       final appDir = await getApplicationDocumentsDirectory();
       _rootCollectionsDir = Directory('${appDir.path}/collections');
@@ -33,9 +31,9 @@ class AppDatabase {
       }
       _initCompleter!.complete();
     } catch (e) {
-      // 4. 재시도 로직
+      await Future.delayed(Duration(seconds: ++retryCount));
       if (retryCount < 3) {
-        return await initialize(key, retryCount: retryCount + 1);
+        return await initialize(key, retryCount: retryCount);
       }
       _initCompleter!.completeError(e);
       throw Exception("데이터베이스 초기화 실패: $e");
