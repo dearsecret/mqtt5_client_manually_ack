@@ -1,10 +1,10 @@
 part of '../core.dart';
 
 enum AppSecurity {
-  encrypt(isProtected: true),
-  device(isProtected: true),
+  id(isProtected: false),
   access(isProtected: false),
-  refresh(isProtected: false);
+  refresh(isProtected: false),
+  encrypt(isProtected: true);
 
   final bool isProtected;
   const AppSecurity({required this.isProtected});
@@ -19,43 +19,24 @@ class FSS {
   FSS._();
   static final FSS instance = FSS._();
   static final List<Completer<void>> _queue = [];
-  static String? _cachedAccessToken;
+  static Completer<void>? _completer;
+  static String get _standard => AppSecurity.access.name;
 
-  String? get accessToken => _cachedAccessToken;
-
-  final _storage = const FlutterSecureStorage(
+  static final StreamController _controller = StreamController();
+  static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
   );
 
-  bool _isAllowed(String key) =>
-      AppSecurity.values.any((e) => e.name == key && e.canWrite);
+  Stream get stream => _controller.stream;
 
-  Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
-      _enqueue(() => _runWithRetry(action, retryCount: retryCount));
-
-  Future<void> _executeBatch(
-    Map<String, String> data, {
-    bool isWrite = true,
-  }) async => await Future.wait(
-    isWrite
-        ? data.entries.map((e) => _storage.write(key: e.key, value: e.value))
-        : data.keys.map((key) => _storage.delete(key: key)),
-  );
-
-  Future<String?> get getRefreshToken async =>
+  Future<String?> get refreshToken async =>
       _execute(() => _storage.read(key: AppSecurity.refresh.name));
 
-  Future<String?> get getAccessToken async {
-    if (_cachedAccessToken != null) return _cachedAccessToken;
-    return _execute(() async {
-      final token = await _storage.read(key: AppSecurity.access.name);
-      _cachedAccessToken = token;
-      return token;
-    });
-  }
+  Future<String?> get id async =>
+      _execute(() => _storage.read(key: AppSecurity.id.name));
 
   Future<List<int>> get getEncryptionKey => _getOrInitSecureData(
     AppSecurity.encrypt,
@@ -63,18 +44,29 @@ class FSS {
     () => base64UrlEncode(Hive.generateSecureKey()),
   );
 
-  Future<String> get getDeviceId => _getOrInitSecureData(
-    AppSecurity.device,
-    (str) => str,
-    () => AppSecurity.generateRandStrKey,
-  );
+  FutureOr<void> initialize({retryCount = 0}) async {
+    if (_completer?.isCompleted ?? false) return;
+    _completer ??= Completer<void>();
+    try {
+      _storage..registerListener(
+        key: AppSecurity.access.name,
+        listener: _controller.add,
+      );
+      await _storage.read(key: AppSecurity.access.name).then(_controller.add);
+    } catch (e) {
+      await Future.delayed(Duration(seconds: retryCount++));
+      return await initialize(retryCount: retryCount);
+    }
+  }
+
+  Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
+      _enqueue(() => _runWithRetry(action, retryCount: retryCount));
 
   /// 파이프라인: 선입선출(FIFO) 완벽 보장
   Future<T> _enqueue<T>(Future<T> Function() action) async {
     final completer = Completer<void>();
     final previous = _queue.isNotEmpty ? _queue.last : null;
     _queue.add(completer);
-
     if (previous != null) await previous.future;
     try {
       return await action();
@@ -95,7 +87,7 @@ class FSS {
       try {
         return await action();
       } catch (e) {
-        if (attempts >= retryCount) rethrow; // 횟수 초과 시 종료
+        if (attempts >= retryCount) rethrow;
         attempts++;
         await Future.delayed(initialDelay * (1 << (attempts - 1)));
       }
@@ -108,69 +100,43 @@ class FSS {
     String Function() generator,
   ) async {
     return _execute(() async {
-      // 1. 기존 데이터 읽기
       String? storedData = await _storage.read(key: key.name);
-
-      if (storedData != null) {
-        return decoder(storedData);
-      }
-
+      if (storedData != null) return decoder(storedData);
       String newData = generator();
       await _storage.write(key: key.name, value: newData);
       return decoder(newData);
     });
   }
 
-  Future<bool> writeAll(Map<String, String> data, {int retryCount = 0}) async {
-    return _execute(() async {
-      if (data.keys.any((key) => !_isAllowed(key))) return false;
-      return _runWithRetry(() async {
-        final backup = await _storage.readAll();
-        try {
-          await _executeBatch(data, isWrite: true);
-          if (data.containsKey(AppSecurity.access.name)) {
-            _cachedAccessToken = data[AppSecurity.access.name];
-          }
-          return true;
-        } catch (e) {
-          await _executeBatch(backup, isWrite: true);
-          _cachedAccessToken = backup[AppSecurity.access.name];
-          rethrow;
-        }
-      }, retryCount: retryCount);
+  /// 모든 저장이 성공한 후에 access를 변경하여 Stream에 변경사항을 알립니다.
+  FutureOr<bool> saveAll(Map<String, String> data) async {
+    final keys = data.keys.toSet();
+    final allowed = AppSecurity.values.where((e) => !e.isProtected).toSet();
+    if (!allowed.containsAll(keys)) return false;
+    final access = data.remove(_standard);
+    await _enqueue<void>(() async {
+      return await _runWithRetry(() async {
+        await Future.wait(
+          data.entries
+              .map((k) => _storage.write(key: k.key, value: k.value))
+              .toList(),
+        ).then(
+          (_) async => await _storage.write(key: _standard, value: access),
+        );
+      }, retryCount: 0);
     });
+    return true;
   }
 
-  Future<bool> clearAll({int retryCount = 0}) async {
-    return _execute(() async {
-      try {
-        await _runWithRetry(() async {
-          final backup = await _storage.readAll();
-          final keysToDelete = Map.fromEntries(
-            backup.entries.where(
-              (e) =>
-                  !AppSecurity.values
-                      .firstWhere(
-                        (s) => s.name == e.key,
-                        orElse: () => AppSecurity.access,
-                      )
-                      .isProtected,
-            ),
-          );
-
-          try {
-            await _executeBatch(keysToDelete, isWrite: false);
-            _cachedAccessToken = null;
-          } catch (e) {
-            await _executeBatch(backup, isWrite: true);
-            _cachedAccessToken = backup[AppSecurity.access.name];
-            rethrow;
-          }
-        }, retryCount: retryCount);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    });
+  /// 호출시 서버에서 이미 refresh는 삭제됐으며, access를 지워주는 것만으로도 효괴는 동일함.
+  /// access 만 삭제된다면 refresh가 지워지지 않아도 무시해도됨.
+  Future<void> clear() async {
+    await _storage.delete(key: _standard);
+    try {
+      await _storage.delete(key: AppSecurity.id.name);
+      await _storage.delete(key: AppSecurity.refresh.name);
+    } finally {
+      return;
+    }
   }
 }
