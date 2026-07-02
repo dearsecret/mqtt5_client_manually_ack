@@ -4,7 +4,8 @@ class AppDatabase {
   AppDatabase._();
 
   static final AppDatabase instance = AppDatabase._();
-  Completer<void>? _initCompleter;
+  static const _maxRetries = 5;
+  Completer<AppDatabase>? _initCompleter;
 
   late final Directory _appDir, _rootCollectionsDir;
   late List<int> _encryptionKey;
@@ -18,24 +19,35 @@ class AppDatabase {
   Map<String, Map<String, CollectionBox>> _boxes = {};
 
   /// FSS에서 생성된 키 : await FSS.instance.getEncryptionKey;
-  Future<void> initialize(List<int> key, {int retryCount = 0}) async {
-    if (_initCompleter?.isCompleted ?? false) return;
-    _initCompleter ??= Completer();
-    try {
-      if (retryCount == 0) _encryptionKey = key;
-      await Hive.initFlutter();
-      final appDir = await getApplicationDocumentsDirectory();
-      _rootCollectionsDir = Directory('${appDir.path}/collections');
-      if (!await _rootCollectionsDir.exists())
-        await _rootCollectionsDir.create(recursive: true);
-      _collections = await getCollectionNames();
-      _initCompleter!.complete();
-    } catch (e) {
-      await Future.delayed(Duration(seconds: ++retryCount));
-      if (retryCount < 3) return await initialize(key, retryCount: retryCount);
-      _initCompleter!.completeError(e);
-      throw Exception("데이터베이스 초기화 실패: $e");
+  FutureOr<AppDatabase> initialize(List<int> key) async {
+    if (_initCompleter?.isCompleted ?? false) return instance;
+    if (_initCompleter != null) return await _initCompleter!.future;
+    _initCompleter = Completer<AppDatabase>();
+
+    int retryCount = 0;
+    while (retryCount < _maxRetries) {
+      try {
+        _encryptionKey = key;
+        await Hive.initFlutter();
+        _appDir = await getApplicationDocumentsDirectory();
+        _rootCollectionsDir = Directory('${_appDir.path}/collections');
+        if (!await _rootCollectionsDir.exists()) {
+          await _rootCollectionsDir.create(recursive: true);
+        }
+        _collections = await getCollectionNames();
+        _initCompleter!.complete(instance);
+        return instance;
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= _maxRetries) {
+          final error = Exception("데이터베이스 초기화 실패: $e");
+          _initCompleter!.completeError(error);
+          throw error;
+        }
+        await Future.delayed(Duration(seconds: retryCount));
+      }
     }
+    throw Exception("Database initialization unexpected failure.");
   }
 
   Future<List<String>> getCollectionNames() async {

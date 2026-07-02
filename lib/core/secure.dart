@@ -20,7 +20,7 @@ class FSS {
   FSS._();
   static final FSS instance = FSS._();
   static const _maxRetries = 5;
-  static Completer<void>? _completer;
+  static Completer<FSS>? _completer;
   static final List<Completer<void>> _queue = [];
 
   static String get _access => AppSecurity.access.name;
@@ -55,9 +55,10 @@ class FSS {
     () => base64UrlEncode(AppSecurity.generateRandomKey),
   );
 
-  Future<FSS?> initialize() async {
-    if (_completer?.isCompleted ?? false) return null;
-    _completer = Completer<void>();
+  FutureOr<FSS> initialize() async {
+    if (_completer?.isCompleted ?? false) return instance;
+    if (_completer != null) return await _completer!.future;
+    _completer = Completer<FSS>();
     int retryCount = 0;
     while (retryCount < _maxRetries) {
       try {
@@ -67,7 +68,7 @@ class FSS {
         );
         final value = await _storage.read(key: AppSecurity.access.name);
         _controller.add(value);
-        _completer?.complete();
+        _completer?.complete(instance);
         return FSS.instance;
       } catch (e) {
         retryCount++;
@@ -75,8 +76,9 @@ class FSS {
         await Future.delayed(Duration(seconds: retryCount));
       }
     }
-    _completer?.completeError("Initialization failed");
-    return null;
+    final error = Exception("Initialization failed after $_maxRetries retries");
+    _completer!.completeError(error);
+    throw error;
   }
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
