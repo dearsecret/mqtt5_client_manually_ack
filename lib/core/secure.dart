@@ -22,6 +22,7 @@ class FSS {
   static final List<Completer<void>> _queue = [];
   static Completer<void>? _completer;
 
+  static const _maxRetries = 5;
   static String get _access => AppSecurity.access.name;
   static String get _id => AppSecurity.id.name;
   static String get _refresh => AppSecurity.refresh.name;
@@ -54,19 +55,28 @@ class FSS {
     () => base64UrlEncode(AppSecurity.generateRandomKey),
   );
 
-  FutureOr<void> initialize({retryCount = 0}) async {
-    if (_completer?.isCompleted ?? false) return;
-    _completer ??= Completer<void>();
-    try {
-      _storage..registerListener(
-        key: AppSecurity.access.name,
-        listener: _controller.add,
-      );
-      await _storage.read(key: AppSecurity.access.name).then(_controller.add);
-    } catch (e) {
-      await Future.delayed(Duration(seconds: retryCount++));
-      return await initialize(retryCount: retryCount);
+  Future<FSS?> initialize() async {
+    if (_completer?.isCompleted ?? false) return null;
+    _completer = Completer<void>();
+    int retryCount = 0;
+    while (retryCount < _maxRetries) {
+      try {
+        _storage.registerListener(
+          key: AppSecurity.access.name,
+          listener: _controller.add,
+        );
+        final value = await _storage.read(key: AppSecurity.access.name);
+        _controller.add(value);
+        _completer?.complete();
+        return FSS.instance;
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= _maxRetries) break;
+        await Future.delayed(Duration(seconds: retryCount));
+      }
     }
+    _completer?.completeError("Initialization failed");
+    return null;
   }
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
