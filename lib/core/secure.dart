@@ -4,6 +4,7 @@ enum AppSecurity {
   id(isProtected: false),
   access(isProtected: false),
   refresh(isProtected: false),
+  device(isProtected: true),
   encrypt(isProtected: true);
 
   final bool isProtected;
@@ -20,7 +21,10 @@ class FSS {
   static final FSS instance = FSS._();
   static final List<Completer<void>> _queue = [];
   static Completer<void>? _completer;
-  static String get _standard => AppSecurity.access.name;
+
+  static String get _access => AppSecurity.access.name;
+  static String get _id => AppSecurity.id.name;
+  static String get _refresh => AppSecurity.refresh.name;
 
   static final StreamController _controller = StreamController();
   static const _storage = FlutterSecureStorage(
@@ -42,6 +46,12 @@ class FSS {
     AppSecurity.encrypt,
     (str) => base64Url.decode(str),
     () => base64UrlEncode(Hive.generateSecureKey()),
+  );
+
+  Future<String> get getDevice => _getOrInitSecureData(
+    AppSecurity.encrypt,
+    (str) => str,
+    () => base64UrlEncode(AppSecurity.generateRandomKey),
   );
 
   FutureOr<void> initialize({retryCount = 0}) async {
@@ -113,16 +123,14 @@ class FSS {
     final keys = data.keys.toSet();
     final allowed = AppSecurity.values.where((e) => !e.isProtected).toSet();
     if (!allowed.containsAll(keys)) return false;
-    final access = data.remove(_standard);
+    final access = data.remove(_access);
     await _enqueue<void>(() async {
       return await _runWithRetry(() async {
         await Future.wait(
           data.entries
               .map((k) => _storage.write(key: k.key, value: k.value))
               .toList(),
-        ).then(
-          (_) async => await _storage.write(key: _standard, value: access),
-        );
+        ).then((_) async => await _storage.write(key: _access, value: access));
       }, retryCount: 0);
     });
     return true;
@@ -131,12 +139,21 @@ class FSS {
   /// 호출시 서버에서 이미 refresh는 삭제됐으며, access를 지워주는 것만으로도 효괴는 동일함.
   /// access 만 삭제된다면 refresh가 지워지지 않아도 무시해도됨.
   Future<void> clear() async {
-    await _storage.delete(key: _standard);
+    await _storage.delete(key: _access);
     try {
-      await _storage.delete(key: AppSecurity.id.name);
-      await _storage.delete(key: AppSecurity.refresh.name);
+      await _storage.delete(key: _id);
+      await _storage.delete(key: _refresh);
     } finally {
       return;
     }
+  }
+
+  Future<({String? id, String? access})> getAccessUser() async {
+    final data = await _storage.readAll();
+    if (data case {'id': final String id, 'access': final String access}) {
+      return (id: id, access: access);
+    }
+    await clear();
+    return (id: null, access: null);
   }
 }
