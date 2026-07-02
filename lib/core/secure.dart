@@ -19,10 +19,10 @@ enum AppSecurity {
 class FSS {
   FSS._();
   static final FSS instance = FSS._();
-  static final List<Completer<void>> _queue = [];
-  static Completer<void>? _completer;
-
   static const _maxRetries = 5;
+  static Completer<void>? _completer;
+  static final List<Completer<void>> _queue = [];
+
   static String get _access => AppSecurity.access.name;
   static String get _id => AppSecurity.id.name;
   static String get _refresh => AppSecurity.refresh.name;
