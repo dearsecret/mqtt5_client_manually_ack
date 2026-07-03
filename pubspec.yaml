@@ -17,6 +17,7 @@ dependencies:
   flutter_secure_storage: "^9.2.0"
   hive_flutter: "^1.1.0"
   path_provider: "^2.1.6"
+  http: ^1.1.0
 
 dev_dependencies:
   test: "^1.25.8"
