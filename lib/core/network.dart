@@ -51,8 +51,9 @@ class AppNetworkUtilities {
 }
 
 class AppNetwork {
-  AppNetwork._(this._baseUri);
+  AppNetwork._(this._baseUri, this.accessor);
   final Uri _baseUri;
+  final Stream accessor;
   static Uri get baseUri => instance._baseUri;
   static AppNetwork? _instance;
 
@@ -62,32 +63,43 @@ class AppNetwork {
   static const Duration timeout = Duration(seconds: 10);
 
   static AppNetwork get instance => _instance!;
-  static late Future<String> Function() getAppcheck;
-  static late Future<String?> Function() getRefresh;
-  static late Future<void> Function(Map<String, dynamic>) putSecure;
+
+  /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
+  late Future<String> Function() getAppcheck;
+
+  /// Secure Storage로부터 직접 토큰을 읽어옵니다.
+  late Future<String?> Function() getRefresh;
+
+  /// Secure Storage에 저장합니다.
+  late Future<void> Function(Map<String, dynamic>) secures;
+
+  /// 에러를 반환 받습니다.
+  Future<void> Function(Object error)? onError;
 
   /// 생성 전 할당 필수
-  static late String appcheck, fcmToken, device;
-  static String? access;
+  late String appcheck, fcmToken, device;
 
-  static Future<void> Function(Object error)? onError;
-  static bool get isLoggedIn => access != null;
+  bool get isLoggedIn => _access != null;
+  String? _access;
 
-  static AppNetwork? init({required String baseUrl}) {
-    if (_instance == null) _instance = AppNetwork._(Uri.parse(baseUrl));
-    return _instance;
-  }
+  static AppNetwork init({
+    required String baseUrl,
+    required Stream<String?> accessor,
+  }) =>
+      (_instance ??= AppNetwork._(Uri.parse(baseUrl), accessor))
+        ..accessor.listen((a) => _instance?._access = a);
 
   static const Map<String, String> defaultHeaders = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
 
-  Map<String, String> get _apiHeader => {
+  Map<String, String> _buildHeaders(bool includeFcm) => {
     ...defaultHeaders,
     'X-Firebase-AppCheck': appcheck,
     'X-DEVICE-ID': device,
-    if (access != null) 'Authorization': 'Bearer $access',
+    if (_access != null) 'Authorization': 'Bearer $_access',
+    if (includeFcm) 'X-DEVICE-TOKEN': fcmToken,
   };
 
   Completer<void>? _refreshCompleter;
@@ -129,8 +141,7 @@ class AppNetwork {
       final encodedBody = body != null ? jsonEncode(body) : null;
       Future<http.Response> requestFn() async {
         final uri = _buildUri(path, queryParameters: queryParameters);
-        final h = _apiHeader;
-        if (includeFcm) h['X-DEVICE-TOKEN'] = fcmToken;
+        final h = _buildHeaders(includeFcm);
         switch (method) {
           case AppNetworkMethod.GET:
             return _client.get(uri, headers: h);
@@ -168,86 +179,6 @@ class AppNetwork {
     }
   }
 
-  // ------------------------------
-  // 공개 메서드
-  // ------------------------------
-  Future<HttpResult<T>> get<T>(
-    String path, {
-    Map<String, String>? headers,
-    Map<String, dynamic>? queryParameters,
-    bool includeFcm = false,
-    T Function(dynamic json)? decoder,
-  }) {
-    return _sendRequest<T>(
-      AppNetworkMethod.GET,
-      path,
-      headers: headers,
-      queryParameters: queryParameters,
-      includeFcm: includeFcm,
-      decoder: decoder,
-    );
-  }
-
-  Future<HttpResult<T>> post<T>(
-    String path, {
-    Map<String, String>? headers,
-    Object? body,
-    T Function(dynamic json)? decoder,
-    bool includeFcm = false,
-  }) => _sendRequest(
-    AppNetworkMethod.POST,
-    path,
-    headers: headers,
-    body: body,
-    decoder: decoder,
-    includeFcm: includeFcm,
-  );
-
-  Future<HttpResult<T>> put<T>(
-    String path, {
-    Map<String, String>? headers,
-    Object? body,
-    T Function(dynamic json)? decoder,
-    bool includeFcm = false,
-  }) => _sendRequest(
-    AppNetworkMethod.PUT,
-    path,
-    headers: headers,
-    body: body,
-    decoder: decoder,
-    includeFcm: includeFcm,
-  );
-
-  Future<HttpResult<T>> patch<T>(
-    String path, {
-    Map<String, String>? headers,
-    Object? body,
-    T Function(dynamic json)? decoder,
-    bool includeFcm = false,
-  }) => _sendRequest(
-    AppNetworkMethod.PATCH,
-    path,
-    headers: headers,
-    body: body,
-    decoder: decoder,
-    includeFcm: includeFcm,
-  );
-
-  Future<HttpResult<T>> delete<T>(
-    String path, {
-    Map<String, String>? headers,
-    Object? body,
-    T Function(dynamic json)? decoder,
-    bool includeFcm = false,
-  }) => _sendRequest(
-    AppNetworkMethod.DELETE,
-    path,
-    headers: headers,
-    body: body,
-    decoder: decoder,
-    includeFcm: includeFcm,
-  );
-
   Future<void> _refreshToken() async {
     if (_refreshCompleter?.isCompleted ?? false)
       return await _refreshCompleter!.future.timeout(timeout);
@@ -266,7 +197,7 @@ class AppNetwork {
       final statusCode = response.statusCode;
       if (statusCode == 401) throw AppNetworkException.authErr;
       if (AppNetworkUtilities.onCreated(statusCode))
-        await putSecure(jsonDecode(response.body));
+        await secures(jsonDecode(response.body));
       return _refreshCompleter?.complete();
     } catch (e) {
       _refreshCompleter!.completeError(e);
@@ -303,6 +234,25 @@ class AppNetwork {
       }
     }
   }
+
+  // ------------------------------
+  // 공개 메서드
+  // ------------------------------
+  Future<HttpResult<T>> request<T>(
+    AppNetworkMethod method,
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    bool includeFcm = false,
+    T Function(dynamic)? decoder,
+  }) => _sendRequest<T>(
+    method,
+    path,
+    body: body,
+    queryParameters: query,
+    includeFcm: includeFcm,
+    decoder: decoder,
+  );
 
   Future<bool> uploadToS3(
     String url,

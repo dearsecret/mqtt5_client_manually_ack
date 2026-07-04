@@ -27,7 +27,8 @@ class FSS {
   static String get _id => AppSecurity.id.name;
   static String get _refresh => AppSecurity.refresh.name;
 
-  static final StreamController _controller = StreamController();
+  static final StreamController<String?> _controller =
+      StreamController<String?>();
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
@@ -35,7 +36,7 @@ class FSS {
     ),
   );
 
-  Stream get stream => _controller.stream;
+  Stream<String?> get stream => _controller.stream;
 
   Future<String?> get refreshToken async =>
       _execute(() => _storage.read(key: AppSecurity.refresh.name));
