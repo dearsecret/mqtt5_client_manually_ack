@@ -51,20 +51,17 @@ class AppNetworkUtilities {
 }
 
 class AppNetwork {
-  AppNetwork._(this._baseUrl);
-  final String _baseUrl;
+  AppNetwork._(this._baseUri);
+  final Uri _baseUri;
+  static Uri get baseUri => instance._baseUri;
   static AppNetwork? _instance;
+
+  static const version = '/api/v1';
   final http.Client _client = http.Client();
   static const maxRetries = 2;
-
   static const Duration timeout = Duration(seconds: 10);
-  static String get baseUrl => instance._baseUrl;
-  static const Map<String, String> defaultHeaders = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-  static AppNetwork get instance => _instance!;
 
+  static AppNetwork get instance => _instance!;
   static late Future<String> Function() getAppcheck;
   static late Future<String?> Function() getRefresh;
   static late Future<void> Function(Map<String, dynamic>) putSecure;
@@ -73,31 +70,47 @@ class AppNetwork {
   static late String appcheck, fcmToken, device;
   static String? access;
 
-  static Future<void> Function()? catchNetwork;
   static Future<void> Function(Object error)? onError;
-
   static bool get isLoggedIn => access != null;
 
   static AppNetwork? init({required String baseUrl}) {
-    if (_instance == null) _instance = AppNetwork._(baseUrl);
+    if (_instance == null) _instance = AppNetwork._(Uri.parse(baseUrl));
     return _instance;
   }
 
+  static const Map<String, String> defaultHeaders = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  Map<String, String> get _apiHeader => {
+    ...defaultHeaders,
+    'X-Firebase-AppCheck': appcheck,
+    'X-DEVICE-ID': device,
+    if (access != null) 'Authorization': 'Bearer $access',
+  };
+
   Completer<void>? _refreshCompleter;
 
-  // ------------------------------
-  // 인증/기타 필드
-  // ------------------------------
-  static Uri _buildUri(String path, {Map<String, dynamic>? queryParameters}) {
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Uri.parse(path).replace(
+  Uri _buildUri(String path, {Map<String, dynamic>? queryParameters}) {
+    if (path.startsWith('http')) {
+      final iPath = Uri.parse(path).replace(
         queryParameters: queryParameters?.map(
           (k, v) => MapEntry(k, v.toString()),
         ),
       );
-    } else {
-      throw Exception('잘못된 요청입니다.');
+      if (iPath.host != _baseUri.host) throw FormatException("잘못된 요청입니다.");
+      return iPath;
     }
+    String nPath = path.startsWith('/') ? path : '/$path';
+    if (!nPath.startsWith(version)) nPath = '$version$nPath';
+    return _baseUri
+        .resolve(nPath.startsWith('/') ? nPath.substring(1) : nPath)
+        .replace(
+          queryParameters: queryParameters?.map(
+            (k, v) => MapEntry(k, v.toString()),
+          ),
+        );
   }
 
   // ------------------------------
@@ -112,17 +125,12 @@ class AppNetwork {
     bool includeFcm = false,
     T Function(dynamic json)? decoder,
   }) async {
-    final uri = _buildUri(path, queryParameters: queryParameters);
     try {
       final encodedBody = body != null ? jsonEncode(body) : null;
       Future<http.Response> requestFn() async {
-        final h = <String, String>{
-          ...defaultHeaders,
-          'X-Firebase-AppCheck': appcheck,
-          'X-DEVICE-ID': device,
-          if (includeFcm) 'X-DEVICE-TOKEN': fcmToken,
-          if (access != null) 'Authorization': 'Bearer $access',
-        };
+        final uri = _buildUri(path, queryParameters: queryParameters);
+        final h = _apiHeader;
+        if (includeFcm) h['X-DEVICE-TOKEN'] = fcmToken;
         switch (method) {
           case AppNetworkMethod.GET:
             return _client.get(uri, headers: h);
@@ -154,7 +162,7 @@ class AppNetwork {
       return result;
     } catch (e) {
       // 파싱 에러 즉, 서버에서 ''가 아닌 "문자열" 날아옴.
-      if (e is FormatException) {} // TODO:
+      // if (e is FormatException) {} // TODO:
       if (onError != null) onError!(e);
       rethrow;
     }
@@ -301,22 +309,16 @@ class AppNetwork {
     Uint8List bytes, {
     String contentType = 'image/jpeg',
   }) async {
-    try {
-      final uri = Uri.parse(url);
-      return await _client
-          .put(
-            uri,
-            body: bytes,
-            headers: {
-              'Content-Type': contentType,
-              'Content-Length': bytes.length.toString(),
-            },
-          )
-          .timeout(const Duration(seconds: 10))
-          .then((r) => r.statusCode == 200);
-    } catch (e) {
-      print('S3 Upload Error: $e');
-      return false;
-    }
+    return await _client
+        .put(
+          Uri.parse(url),
+          body: bytes,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': bytes.length.toString(),
+          },
+        )
+        .timeout(const Duration(seconds: 10))
+        .then((r) => r.statusCode == 200);
   }
 }
