@@ -73,7 +73,7 @@ class AppNetwork {
   Future<void> Function(Object error)? onError;
 
   /// 생성 전 할당 필수
-  late String fcmToken, device;
+  late String fcmToken, device, id;
   String? acc, appcheck;
 
   static AppNetwork init({required String baseUrl}) =>
