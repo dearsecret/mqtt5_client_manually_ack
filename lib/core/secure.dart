@@ -66,9 +66,6 @@ class FSS {
     while (retryCount < _maxRetries) {
       try {
         _storage.registerListener(key: _access, listener: _controller.add);
-        // final properties = await getUserProperty();
-        // if (properties.containsKey(_access))
-        //   _controller.add(properties[_access]);
         _completer?.complete(instance);
         return FSS.instance;
       } catch (e) {
