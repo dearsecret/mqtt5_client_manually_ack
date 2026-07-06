@@ -64,7 +64,7 @@ class AppNetwork {
   static AppNetwork get instance => _instance!;
 
   /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
-  late Future<String?> Function()? getAppcheck, getRefresh;
+  late Future<String?> Function() getAppcheck, getRefresh;
 
   /// Secure Storage에 저장합니다.
   late Future<void> Function(Map<String, String>) tokens;
@@ -175,22 +175,23 @@ class AppNetwork {
     _refreshCompleter = Completer<void>();
     try {
       final uri = _buildUri('/auth/refresh');
-      appcheck = await getAppcheck?.call();
-      final refresh = await getRefresh?.call();
+      final token = await getAppcheck();
+      final refresh = await getRefresh();
+      if (token == null) throw AppNetworkException.appcheckErr;
+      if (refresh == null) throw AppNetworkException.authErr;
       final response = await _client
           .post(
             uri,
-            headers: {
-              'X-Device-Id': device,
-              if (appcheck != null) 'X-Firebase-AppCheck': appcheck!,
-            },
+            headers: {'X-Device-Id': device, 'X-Firebase-AppCheck': token},
             body: jsonEncode({'refresh': refresh}),
           )
           .timeout(timeout);
       final statusCode = response.statusCode;
       if (statusCode == 401) throw AppNetworkException.authErr;
       if (AppNetworkUtilities.onCreated(statusCode))
-        await tokens(Map<String, String>.from(jsonDecode(response.body)));
+        await tokens(
+          Map<String, String>.from(jsonDecode(response.body)),
+        ).then((_) => appcheck = token);
       return _refreshCompleter?.complete();
     } catch (e) {
       _refreshCompleter!.completeError(e);
