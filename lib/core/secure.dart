@@ -145,7 +145,7 @@ class FSS {
     });
   }
 
-  static Future<void> clear([Map<String, dynamic>? data]) async {
+  Future<void> clear([Map<String, dynamic>? data]) async {
     if (data?.isNotEmpty ?? false) {
       try {
         for (var key in data!.keys) {
