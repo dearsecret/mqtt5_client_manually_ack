@@ -145,16 +145,20 @@ class FSS {
     });
   }
 
-  static Future<void> _clear(Map<String, dynamic> data) async {
-    try {
-      for (var key in data.keys) {
-        if (key == _access) continue;
-        if (!AppSecurity.values.byName(key).isProtected)
-          await _storage.delete(key: _refresh);
+  static Future<void> clear([Map<String, dynamic>? data]) async {
+    if (data?.isNotEmpty ?? false) {
+      try {
+        for (var key in data!.keys) {
+          if (key == _access) continue;
+          if (!AppSecurity.values.byName(key).isProtected)
+            await _storage.delete(key: _refresh);
+        }
+        await _storage.delete(key: _access);
+      } finally {
+        return;
       }
+    } else {
       await _storage.delete(key: _access);
-    } finally {
-      return;
     }
   }
 
@@ -164,7 +168,7 @@ class FSS {
     if (storageKeys.containsAll(AppSecurity.inputs))
       return Map<String, String>.from(data)
         ..removeWhere((k, _) => AppSecurity.values.byName(k).hidden);
-    if (storageKeys.contains(_access)) await _clear(data);
+    if (storageKeys.contains(_access)) await clear(data);
     return Map<String, String>.from({
       if (storageKeys.contains(AppSecurity.device.name))
         AppSecurity.device.name: data[AppSecurity.device.name],
