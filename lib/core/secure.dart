@@ -1,19 +1,25 @@
 part of '../core.dart';
 
 enum AppSecurity {
-  id(isProtected: false),
-  access(isProtected: false),
-  refresh(isProtected: false),
-  device(isProtected: true),
-  encrypt(isProtected: true);
+  id(isProtected: false, hidden: false),
+  access(isProtected: false, hidden: false),
+  refresh(isProtected: false, hidden: true),
+  device(isProtected: true, hidden: false),
+  encrypt(isProtected: true, hidden: true);
 
-  final bool isProtected;
-  const AppSecurity({required this.isProtected});
+  final bool isProtected, hidden;
+  const AppSecurity({required this.isProtected, required this.hidden});
   bool get canWrite => !isProtected;
 
   static List<int> get generateRandomKey => Hive.generateSecureKey();
   static String get generateRandStrKey => base64Encode(generateRandomKey);
   static List<int> decode(String strKey) => base64Url.decode(strKey);
+
+  static Set<String> get inputs =>
+      AppSecurity.values
+          .where((e) => !e.isProtected)
+          .map((e) => e.name)
+          .toSet();
 }
 
 class FSS {
@@ -24,11 +30,12 @@ class FSS {
   static final List<Completer<void>> _queue = [];
 
   static String get _access => AppSecurity.access.name;
-  static String get _id => AppSecurity.id.name;
   static String get _refresh => AppSecurity.refresh.name;
 
   static final StreamController<String?> _controller =
       StreamController<String?>();
+  static StreamController<String?> get ctrl => _controller;
+
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
@@ -36,13 +43,8 @@ class FSS {
     ),
   );
 
-  Stream<String?> get stream => _controller.stream;
-
   Future<String?> get refreshToken async =>
       _execute(() => _storage.read(key: AppSecurity.refresh.name));
-
-  Future<String?> get id async =>
-      _execute(() => _storage.read(key: AppSecurity.id.name));
 
   Future<List<int>> get getEncryptionKey => _getOrInitSecureData(
     AppSecurity.encrypt,
@@ -63,12 +65,10 @@ class FSS {
     int retryCount = 0;
     while (retryCount < _maxRetries) {
       try {
-        _storage.registerListener(
-          key: AppSecurity.access.name,
-          listener: _controller.add,
-        );
-        final value = await _storage.read(key: AppSecurity.access.name);
-        _controller.add(value);
+        _storage.registerListener(key: _access, listener: _controller.add);
+        // final properties = await getUserProperty();
+        // if (properties.containsKey(_access))
+        //   _controller.add(properties[_access]);
         _completer?.complete(instance);
         return FSS.instance;
       } catch (e) {
@@ -132,10 +132,10 @@ class FSS {
   }
 
   /// 모든 저장이 성공한 후에 access를 변경하여 Stream에 변경사항을 알립니다.
-  FutureOr<bool> saveAll(Map<String, String> data) async {
+  Future<void> saveAll(Map<String, String> data) async {
     final keys = data.keys.toSet();
     final allowed = AppSecurity.values.where((e) => !e.isProtected).toSet();
-    if (!allowed.containsAll(keys)) return false;
+    if (!allowed.containsAll(keys)) return;
     final access = data.remove(_access);
     await _enqueue<void>(() async {
       return await _runWithRetry(() async {
@@ -146,27 +146,40 @@ class FSS {
         ).then((_) async => await _storage.write(key: _access, value: access));
       }, retryCount: 0);
     });
-    return true;
   }
 
-  /// 호출시 서버에서 이미 refresh는 삭제됐으며, access를 지워주는 것만으로도 효괴는 동일함.
-  /// access 만 삭제된다면 refresh가 지워지지 않아도 무시해도됨.
-  Future<void> clear() async {
-    await _storage.delete(key: _access);
+  static Future<void> _clear(Map<String, dynamic> data) async {
     try {
-      await _storage.delete(key: _id);
-      await _storage.delete(key: _refresh);
+      for (var key in data.keys) {
+        if (key == _access) continue;
+        if (!AppSecurity.values.byName(key).isProtected)
+          await _storage.delete(key: _refresh);
+      }
+      await _storage.delete(key: _access);
     } finally {
       return;
     }
   }
 
-  Future<({String? id, String? access})> getAccessUser() async {
+  Future<Map<String, String>> getUserProperty() async {
     final data = await _storage.readAll();
-    if (data case {'id': final String id, 'access': final String access}) {
-      return (id: id, access: access);
-    }
-    await clear();
-    return (id: null, access: null);
+    final storageKeys = data.keys.toSet();
+    if (storageKeys.containsAll(AppSecurity.inputs))
+      return Map<String, String>.from(data)
+        ..removeWhere((k, _) => AppSecurity.values.byName(k).hidden);
+    if (storageKeys.contains(_access)) await _clear(data);
+    return Map<String, String>.from({
+      if (storageKeys.contains(AppSecurity.device.name))
+        AppSecurity.device.name: data[AppSecurity.device.name],
+    });
   }
+
+  Future<({String? id, String? device, String? acc})> get properties async =>
+      await getUserProperty().then(
+        (e) => (
+          id: e[AppSecurity.id.name],
+          device: e[AppSecurity.device.name],
+          acc: e[_access],
+        ),
+      );
 }
