@@ -89,7 +89,7 @@ class AppDatabase {
     String colName,
     Set<String> boxes,
   ) async {
-    if (_caches[colName] == boxes) return _caches[colName]!;
+    if (_caches.containsKey(colName)) return _caches[colName]!;
     final boxCollection = await BoxCollection.open(
       colName,
       boxes,
