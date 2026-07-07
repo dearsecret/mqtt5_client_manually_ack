@@ -110,21 +110,22 @@ class AppDatabase {
   }
 }
 
-// enum UserBoxes { profile, settings }
-// enum LogBoxes { crash, history }
-
-// // 💡 믹스인(with) 대신 구현(implements) 구조로 바꿉니다.
-// enum MyCollections implements AppCollection<Enum> {
-//   user(UserBoxes.values),
-//   logs(LogBoxes.values);
-
-//   // 추상 클래스의 생성자와 연결시켜 주기 위한 필수 '최소' 코드 (단 두 줄)
-//   @override
-//   final Iterable<Enum> boxTypes;
-//   const MyCollections(this.boxTypes);
-// }
+/// ## 데이터베이스 헬퍼 추상 인터페이스
+///
+/// **사용 예시:**
+/// ```dart
+/// enum UserBoxes { profile, settings }
+/// enum LogBoxes { crash, history }
+///
+/// enum MyCollections implements AppCollection<Enum> {
+///   user(UserBoxes.values),
+///   logs(LogBoxes.values);
+///
+///   @override
+///   final Iterable<Enum> boxTypes;
+///   const MyCollections(this.boxTypes);
+/// }
 /// ```
-/// ## 1. 순수 추상 인터페이스 (변수와 생성자 제거)
 abstract class AppCollection<T extends Enum> {
   Iterable<T> get boxTypes;
 }
