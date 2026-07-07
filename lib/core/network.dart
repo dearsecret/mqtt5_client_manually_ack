@@ -149,8 +149,14 @@ class AppNetwork {
         );
       return result;
     } catch (e) {
-      // 파싱 에러 즉, 서버에서 ''가 아닌 "문자열" 날아옴.
-      // if (e is FormatException) {} // TODO:
+      // Custom AppNetworkException
+      // .. TypeError, FormatExecption
+      // IOException (최상위 부모 인터페이스)
+      // ├── SocketException (인터넷 미연결, 서버 연결 거부, 호스트 못 찾음 등)
+      // ├── HttpException (HTTP 프로토콜 자체 규격 위반)
+      // └── TlsException (SSL/TLS 보안 프로토콜 관련 총괄 실패)
+      //       ├── HandshakeException (암호화 연결 악수 단계 실패 - 버전 불일치 등)
+      //       └── CertificateException (인증서 만료, 신뢰할 수 없는 사설 인증서 등)
       if (onError != null) onError!(e);
       rethrow;
     }
@@ -198,14 +204,12 @@ class AppNetwork {
         if (response.isSuccess) return response;
         if (response.isAuthErr && acc != null) {
           await refreshes();
-          final reRes = await requestFn().timeout(timeout);
-          if (reRes.isSuccess) return reRes;
+          return await requestFn().timeout(timeout);
         }
-        throw AppNetworkException.unknownErr;
+        return response;
       } catch (e) {
         if (++retryCount >= maxRetries) rethrow;
         if (e is SocketException && e.isRetryable) continue;
-        if (e is AppNetworkException && e.isServerErr) continue;
         rethrow;
       }
     }
