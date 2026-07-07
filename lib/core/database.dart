@@ -110,41 +110,41 @@ class AppDatabase {
   }
 }
 
-/// ## 데이터베이스 헬퍼 믹스인
-/// 이 믹스인은 [AppDatabase]와 연동하여 컬렉션 및 박스 접근을
-/// 타입 안전하게(Type-Safe) 관리할 수 있도록 기능을 제공합니다.
-///
-/// **사용 예시:**
-/// ```dart
-/// enum UserBoxes { profile, settings }
-///
-/// enum MyCollections with AppCollection<UserBoxes> {
-///   user(boxTypes: UserBoxes.values)
-///   logs(boxTypes: [UserBoxes.profile]);
-///
-///   final Iterable<UserBoxes> boxTypes;
-///   const MyCollections({required this.boxTypes});
-/// }
+// enum UserBoxes { profile, settings }
+// enum LogBoxes { crash, history }
+
+// // 💡 믹스인(with) 대신 구현(implements) 구조로 바꿉니다.
+// enum MyCollections implements AppCollection<Enum> {
+//   user(UserBoxes.values),
+//   logs(LogBoxes.values);
+
+//   // 추상 클래스의 생성자와 연결시켜 주기 위한 필수 '최소' 코드 (단 두 줄)
+//   @override
+//   final Iterable<Enum> boxTypes;
+//   const MyCollections(this.boxTypes);
+// }
 /// ```
-mixin AppCollection<T extends Enum> on Enum {
-  Iterable<T> get boxTypes;
+abstract class AppCollection<T extends Enum> {
+  // 1. enum 고유의 name 프로퍼티와 일치하도록 명세만 열어둡니다.
+  String get name;
+
+  // 2. 생성자에서 인수로 받을 핵심 멤버 변수
+  final Iterable<T> boxTypes;
+
+  // 3. 지저분했던 변환 로직들을 부모 레이어에서 알아서 계산하도록 처리
   Set<String> get boxNames => boxTypes.map((e) => e.name).toSet();
+
+  // 4. 생성자를 통해 자식(enum)으로부터 값을 안전하게 주입받습니다.
+  const AppCollection(this.boxTypes);
 
   Future<BoxCollection> get collection async =>
       await AppDatabase.instance.openCollection(name, boxNames);
 
-  /// [boxName]에 해당하는 [CollectionBox]를 엽니다.
-  ///
-  /// 이미 열려있다면 **캐시된 인스턴스**를 반환하며,
-  /// 없으면 `AppDatabase`를 통해 새로 엽니다.
   Future<CollectionBox> open(T boxType) async {
     final col = await collection;
     return await AppDatabase.instance.openBox(col, boxType.name);
   }
 
-  /// 원자적으로 인수로 받은 함수에 따라 CRUD 를 수행합니다.
-  ///
-  /// 해당하는 [BoxCollection]가 존재한다면 ***캐시된 인스턴스**를 사용합니다.
   Future<void> run(
     Future Function(BoxCollection) action, {
     bool readOnly = false,
