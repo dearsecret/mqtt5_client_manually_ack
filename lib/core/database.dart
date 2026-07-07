@@ -126,7 +126,7 @@ class AppDatabase {
 ///   const MyCollections({required this.boxTypes});
 /// }
 /// ```
-mixin AppCollection<T extends Enum> {
+mixin AppCollection<T extends Enum> on Enum {
   String get name;
   Iterable<T> get boxTypes;
   Set<String> get boxNames => boxTypes.map((e) => e.name).toSet();
@@ -138,9 +138,9 @@ mixin AppCollection<T extends Enum> {
   ///
   /// 이미 열려있다면 **캐시된 인스턴스**를 반환하며,
   /// 없으면 `AppDatabase`를 통해 새로 엽니다.
-  Future<CollectionBox> open(String boxName) async {
+  Future<CollectionBox> open(T boxType) async {
     final col = await collection;
-    return await AppDatabase.instance.openBox(col, boxName);
+    return await AppDatabase.instance.openBox(col, boxType.name);
   }
 
   /// 원자적으로 인수로 받은 함수에 따라 CRUD 를 수행합니다.
@@ -150,12 +150,11 @@ mixin AppCollection<T extends Enum> {
     Future Function(BoxCollection) action, {
     bool readOnly = false,
   }) async {
-    await collection.then((c) async {
-      await c.transaction(
-        () async => await action(c),
-        boxNames: c.boxNames.toList(),
-        readOnly: readOnly,
-      );
-    });
+    final c = await collection;
+    await c.transaction(
+      () async => await action(c),
+      boxNames: c.boxNames.toList(),
+      readOnly: readOnly,
+    );
   }
 }
