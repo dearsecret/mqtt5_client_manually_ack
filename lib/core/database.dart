@@ -124,18 +124,17 @@ class AppDatabase {
 //   const MyCollections(this.boxTypes);
 // }
 /// ```
+/// ## 1. 순수 추상 인터페이스 (변수와 생성자 제거)
 abstract class AppCollection<T extends Enum> {
-  // 1. enum 고유의 name 프로퍼티와 일치하도록 명세만 열어둡니다.
-  String get name;
+  Iterable<T> get boxTypes;
+}
 
-  // 2. 생성자에서 인수로 받을 핵심 멤버 변수
-  final Iterable<T> boxTypes;
+/// ## 2. 모든 구현 코드를 확장 메서드(Extension)로 완벽 격리
+extension AppCollectionX<T extends Enum> on AppCollection<T> {
+  // Enum 고유의 name 프로퍼티가 노출되도록 유도 (on Enum이 아니어도 implements Enum 효과)
+  String get name => (this as Enum).name;
 
-  // 3. 지저분했던 변환 로직들을 부모 레이어에서 알아서 계산하도록 처리
   Set<String> get boxNames => boxTypes.map((e) => e.name).toSet();
-
-  // 4. 생성자를 통해 자식(enum)으로부터 값을 안전하게 주입받습니다.
-  const AppCollection(this.boxTypes);
 
   Future<BoxCollection> get collection async =>
       await AppDatabase.instance.openCollection(name, boxNames);
