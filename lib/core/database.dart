@@ -127,7 +127,6 @@ class AppDatabase {
 /// }
 /// ```
 mixin AppCollection<T extends Enum> on Enum {
-  String get name;
   Iterable<T> get boxTypes;
   Set<String> get boxNames => boxTypes.map((e) => e.name).toSet();
 
