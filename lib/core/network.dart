@@ -2,6 +2,13 @@ part of '../core.dart';
 
 enum AppNetworkMethod { GET, POST, PUT, DELETE, PATCH }
 
+extension HttpResponse on http.Response {
+  static const authErr = [401, 403];
+  bool get isSuccess =>
+      (statusCode >= 200 && statusCode < 300) || statusCode == 304;
+  bool get isAuthErr => authErr.contains(statusCode);
+}
+
 class HttpResult<T> {
   final int statusCode;
   final Map<String, String> headers;
@@ -27,26 +34,6 @@ class HttpResult<T> {
     } catch (_) {
       return rawBody.length < 100 ? rawBody : "알 수 없는 서버 오류";
     }
-  }
-}
-
-class AppNetworkUtilities {
-  static const authErr = [401, 403];
-  static const serverCreated = [200, 201];
-
-  static bool isAuthErr(int? e) => authErr.contains(e);
-  static bool onCreated(int? e) => serverCreated.contains(e);
-
-  static String? handleErrorMessage(Object e) {
-    return switch (e) {
-      FormatException => "데이터 형식이 잘못되었습니다.",
-      TimeoutException => "서버 응답이 없습니다. 잠시 후 다시 시도해주세요.",
-      TlsException || HandshakeException => "보안 연결에 실패했습니다.",
-      AppNetworkException ex => ex.message, // 커스텀 예외 메시지 그대로 전달
-      SocketException error when error.isUnreach => "네트워크 연결을 확인해주세요.",
-      SocketException => "네트워크 환경이 원활하지 않습니다.",
-      _ => "알 수 없는 오류가 발생했습니다.",
-    };
   }
 }
 
@@ -188,11 +175,11 @@ class AppNetwork {
           .timeout(timeout);
       final statusCode = response.statusCode;
       if (statusCode == 401) throw AppNetworkException.authErr;
-      if (AppNetworkUtilities.onCreated(statusCode))
+      if (response.isSuccess)
         await tokens(
           Map<String, String>.from(jsonDecode(response.body)),
         ).then((_) => appcheck = token);
-      return _refreshCompleter?.complete();
+      _refreshCompleter?.complete();
     } catch (e) {
       _refreshCompleter!.completeError(e);
       rethrow;
@@ -208,18 +195,13 @@ class AppNetwork {
     while (true) {
       try {
         final response = await requestFn().timeout(timeout);
-        if (response.statusCode >= 200 && response.statusCode < 300)
-          return response;
-        if (AppNetworkUtilities.isAuthErr(response.statusCode)) {
-          if (acc != null) await refreshes();
-          final retryRes = await requestFn();
-          if (AppNetworkUtilities.isAuthErr(retryRes.statusCode))
-            return retryRes;
-          throw AppNetworkException.authErr;
+        if (response.isSuccess) return response;
+        if (response.isAuthErr && acc != null) {
+          await refreshes();
+          final reRes = await requestFn().timeout(timeout);
+          if (reRes.isSuccess) return reRes;
         }
-        if ([502, 503, 504].contains(response.statusCode))
-          throw AppNetworkException.serverErr;
-        return response;
+        throw AppNetworkException.unknownErr;
       } catch (e) {
         if (++retryCount >= maxRetries) rethrow;
         if (e is SocketException && e.isRetryable) continue;

@@ -42,4 +42,9 @@ class AppNetworkException implements HttpException {
     message: '서버와의 통신이 원활하지 않습니다.',
     statusCode: 500,
   );
+
+  static const unknownErr = AppNetworkException(
+    message: '알수 없는 에러가 발생하였습니다.',
+    statusCode: 500,
+  );
 }
