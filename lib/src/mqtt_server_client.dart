@@ -122,4 +122,6 @@ class MqttServerClient extends MqttClient {
   }
 
   MqttPublishingManager? get publishingManager => super.publishingManager;
+  MqttSubscriptionManager? get subscriptionsManager =>
+      super.subscriptionsManager;
 }
