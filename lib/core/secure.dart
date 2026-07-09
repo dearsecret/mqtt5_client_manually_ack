@@ -11,10 +11,6 @@ enum AppSecurity {
   const AppSecurity({required this.isProtected, required this.hidden});
   bool get canWrite => !isProtected;
 
-  static List<int> get generateRandomKey => Hive.generateSecureKey();
-  static String get generateRandStrKey => base64Encode(generateRandomKey);
-  static List<int> decode(String strKey) => base64Url.decode(strKey);
-
   static Set<String> get inputs =>
       AppSecurity.values
           .where((e) => !e.isProtected)
@@ -46,16 +42,16 @@ class FSS {
   Future<String?> get refreshToken async =>
       _execute(() => _storage.read(key: AppSecurity.refresh.name));
 
-  Future<List<int>> get getEncryptionKey => _getOrInitSecureData(
+  Future<String> get getEncryptionKey => _getOrInitSecureData(
     AppSecurity.encrypt,
-    (str) => base64Url.decode(str),
-    () => base64UrlEncode(Hive.generateSecureKey()),
+    (str) => str,
+    () => _generateSecureRandomKey(),
   );
 
   Future<String> get getDevice => _getOrInitSecureData(
     AppSecurity.encrypt,
     (str) => str,
-    () => base64UrlEncode(AppSecurity.generateRandomKey),
+    () => _generateSecureRandomKey(),
   );
 
   FutureOr<FSS> initialize() async {
@@ -183,4 +179,11 @@ class FSS {
           acc: e[_access],
         ),
       );
+
+  static String _generateSecureRandomKey() {
+    final random = Random.secure();
+    final Uint8List keyBytes = Uint8List(32);
+    for (int i = 0; i < 32; i++) keyBytes[i] = random.nextInt(256);
+    return base64Url.encode(keyBytes).replaceAll('=', '');
+  }
 }

@@ -8,15 +8,9 @@ environment:
 dependencies:
   typed_data: "^1.4.0"
   event_bus: "^2.0.1"
-  path: "^1.9.0"
-  universal_html: "^2.2.4"
-  crypto: "^3.0.6"
   meta: "^1.15.0"
-  web: ">=0.5.0 <2.0.0"
   characters: "^1.4.0"
   flutter_secure_storage: "^9.2.0"
-  hive_flutter: "^1.1.0"
-  path_provider: "^2.1.6"
   http: ^1.1.0
 
 dev_dependencies:
