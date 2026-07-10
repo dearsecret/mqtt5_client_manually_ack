@@ -185,13 +185,4 @@ class FSS {
     final values = List<int>.generate(32, (_) => random.nextInt(256));
     return base64Url.encode(values).replaceAll('=', '');
   }
-
-  static String generateTId() {
-    final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final randomPart = Random()
-        .nextInt(46656)
-        .toRadixString(36)
-        .padLeft(3, '0');
-    return '$timestamp$randomPart';
-  }
 }
