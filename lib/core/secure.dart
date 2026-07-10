@@ -182,8 +182,16 @@ class FSS {
 
   static String _generateSecureRandomKey() {
     final random = Random.secure();
-    final Uint8List keyBytes = Uint8List(32);
-    for (int i = 0; i < 32; i++) keyBytes[i] = random.nextInt(256);
-    return base64Url.encode(keyBytes).replaceAll('=', '');
+    final values = List<int>.generate(32, (_) => random.nextInt(256));
+    return base64Url.encode(values).replaceAll('=', '');
+  }
+
+  static String generateTId() {
+    final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final randomPart = Random()
+        .nextInt(46656)
+        .toRadixString(36)
+        .padLeft(3, '0');
+    return '$timestamp$randomPart';
   }
 }
