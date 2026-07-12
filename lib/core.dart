@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'dart:math';
 
 import 'package:encrypt/encrypt.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:http/http.dart' as http;
 // import 'package:path_provider/path_provider.dart';
 

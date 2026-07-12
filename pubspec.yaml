@@ -13,6 +13,7 @@ dependencies:
   characters: "^1.4.0"
   flutter_secure_storage: "^9.2.0"
   http: ^1.1.0
+  flutter_cache_manager: ^3.4.1
 
 dev_dependencies:
   test: "^1.25.8"
