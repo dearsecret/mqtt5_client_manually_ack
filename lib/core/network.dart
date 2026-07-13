@@ -61,7 +61,7 @@ class AppNetwork {
 
   /// 생성 전 할당 필수
   late String fcmToken, device;
-  String? acc, appcheck, id;
+  String? acc, appcheck;
 
   static AppNetwork init({required String baseUrl}) =>
       _instance ??= AppNetwork._(Uri.parse(baseUrl));
