@@ -20,7 +20,13 @@ enum AppSecurity {
 
 class FSS {
   FSS._();
-  static final FSS instance = FSS._();
+
+  static final FSS _instance = FSS._();
+  static FSS get instance {
+    if (!(_completer?.isCompleted ?? true)) throw Exception("초기화에 실패하였습니다.");
+    return _instance;
+  }
+
   static const _maxRetries = 5;
   static Completer<FSS>? _completer;
   static final List<Completer<void>> _queue = [];
@@ -58,21 +64,24 @@ class FSS {
     if (_completer?.isCompleted ?? false) return instance;
     if (_completer != null) return await _completer!.future;
     _completer = Completer<FSS>();
-    int retryCount = 0;
-    while (retryCount < _maxRetries) {
-      try {
-        _storage.registerListener(key: _access, listener: _controller.add);
-        _completer?.complete(instance);
-        return FSS.instance;
-      } catch (e) {
-        retryCount++;
-        if (retryCount >= _maxRetries) break;
-        await Future.delayed(Duration(seconds: retryCount));
+    try {
+      int retryCount = 0;
+      while (true) {
+        try {
+          _storage.registerListener(key: _access, listener: _controller.add);
+          _completer!.complete(instance);
+          return instance;
+        } catch (e) {
+          retryCount++;
+          if (retryCount >= _maxRetries) rethrow;
+          await Future.delayed(Duration(seconds: retryCount));
+        }
       }
+    } catch (e) {
+      _completer!.completeError(e);
+      _completer = null;
+      rethrow;
     }
-    final error = Exception("Initialization failed after $_maxRetries retries");
-    _completer!.completeError(error);
-    throw error;
   }
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
