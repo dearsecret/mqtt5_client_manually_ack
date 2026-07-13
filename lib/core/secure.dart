@@ -1,7 +1,6 @@
 part of '../core.dart';
 
 enum AppSecurity {
-  id(isProtected: false, hidden: false),
   access(isProtected: false, hidden: false),
   refresh(isProtected: false, hidden: true),
   device(isProtected: true, hidden: false),
@@ -152,21 +151,9 @@ class FSS {
     });
   }
 
-  Future<void> clear([Map<String, dynamic>? data]) async {
-    if (data?.isNotEmpty ?? false) {
-      try {
-        for (var key in data!.keys) {
-          if (key == _access) continue;
-          if (!AppSecurity.values.byName(key).isProtected)
-            await _storage.delete(key: _refresh);
-        }
-        await _storage.delete(key: _access);
-      } finally {
-        return;
-      }
-    } else {
-      await _storage.delete(key: _access);
-    }
+  Future<void> clear() async {
+    await _storage.delete(key: _refresh);
+    await _storage.delete(key: _access);
   }
 
   Future<Map<String, String>> getUserProperty() async {
@@ -175,20 +162,16 @@ class FSS {
     if (storageKeys.containsAll(AppSecurity.inputs))
       return Map<String, String>.from(data)
         ..removeWhere((k, _) => AppSecurity.values.byName(k).hidden);
-    if (storageKeys.contains(_access)) await clear(data);
+    if (storageKeys.contains(_access)) await clear();
     return Map<String, String>.from({
       if (storageKeys.contains(AppSecurity.device.name))
         AppSecurity.device.name: data[AppSecurity.device.name],
     });
   }
 
-  Future<({String? id, String? device, String? acc})> get properties async =>
+  Future<({String? device, String? acc})> get properties async =>
       await getUserProperty().then(
-        (e) => (
-          id: e[AppSecurity.id.name],
-          device: e[AppSecurity.device.name],
-          acc: e[_access],
-        ),
+        (e) => (device: e[AppSecurity.device.name], acc: e[_access]),
       );
 
   static String _generateSecureRandomKey() {
