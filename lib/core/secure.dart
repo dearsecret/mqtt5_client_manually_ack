@@ -68,7 +68,9 @@ class FSS {
       int retryCount = 0;
       while (true) {
         try {
-          _storage.registerListener(key: _access, listener: _controller.add);
+          _storage
+            ..unregisterAllListeners()
+            ..registerListener(key: _access, listener: _controller.add);
           _completer!.complete(instance);
           return instance;
         } catch (e) {
