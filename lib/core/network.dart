@@ -51,11 +51,14 @@ class AppNetwork {
   static AppNetwork get instance => _instance!;
 
   /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
-  late Future<String?> Function() getAppcheck, getRefresh;
+  late Future<String?> Function() getAppcheck;
 
-  /// Secure Storage에 저장하거나 삭제합니다.
-  late Future<void> Function(Map<String, String>) tokens;
-  Future<void> Function()? cleans;
+  /// Secure Storage에 읽거나 저장하거나 삭제합니다.
+  final Future<void> Function(Map<String, String>) tokens =
+      (d) async => await FSS.instance.saveAll(d);
+  final Future<void> Function() cleans = () async => await FSS.instance.clear();
+  final Future<String?> Function() getRefresh =
+      () async => await FSS.instance.refreshToken();
 
   /// 에러를 반환 받습니다.
   Future<void> Function(Object error)? onError;
@@ -188,8 +191,7 @@ class AppNetwork {
         ).then((_) => appcheck = token);
       _refreshCompleter?.complete();
     } catch (e) {
-      if (e is AppNetworkException && e.isAuthErr && cleans != null)
-        await cleans?.call();
+      if (e is AppNetworkException && e.isAuthErr) await cleans.call();
       _refreshCompleter!.completeError(e);
       rethrow;
     } finally {

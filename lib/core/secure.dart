@@ -45,7 +45,7 @@ class FSS {
   );
 
   Future<String?> get refreshToken async =>
-      _execute(() => _storage.read(key: AppSecurity.refresh.name));
+      _execute(() => _storage.read(key: _refresh));
 
   Future<String> get getEncryptionKey => _getOrInitSecureData(
     AppSecurity.encrypt,
