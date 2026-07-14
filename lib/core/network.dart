@@ -180,11 +180,11 @@ class AppNetwork {
           )
           .timeout(timeout);
       final statusCode = response.statusCode;
-      if (statusCode == 401) throw AppNetworkException.authErr;
       if (response.isSuccess)
         await tokens(
           Map<String, String>.from(jsonDecode(response.body)),
         ).then((_) => appcheck = token);
+      if (statusCode == 401) throw AppNetworkException.authErr;
       _refreshCompleter?.complete();
     } catch (e) {
       _refreshCompleter!.completeError(e);
