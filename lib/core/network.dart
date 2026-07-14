@@ -48,16 +48,20 @@ class AppNetwork {
   static const maxRetries = 2;
   static const Duration timeout = Duration(seconds: 10);
 
-  static AppNetwork get instance => _instance!;
+  static AppNetwork get instance {
+    if (_instance == null) throw StateError("네트워크가 초기화되지 않았습니다.");
+    return _instance!;
+  }
 
   /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
   late Future<String?> Function() getAppcheck;
 
-  /// Secure Storage에 읽거나 저장하거나 삭제합니다.
-  final Future<void> Function(Map<String, String>) tokens =
-      (d) async => await FSS.instance.saveAll(d);
-  final Future<void> Function() cleans = () async => await FSS.instance.clear();
-  final Future<String?> Function() getRefresh =
+  /// Secure Storage를 대상으로 읽기 또는 저장하거나 삭제합니다.
+  late final FSS _fss;
+  late final Future<void> Function(Map<String, String>) tokens =
+      (d) async => await _fss.saveAll(d);
+  late final Future<void> Function() cleans = () async => await _fss.clear();
+  late final Future<String?> Function() getRefresh =
       () async => await FSS.instance.refreshToken();
 
   /// 에러를 반환 받습니다.
@@ -67,8 +71,13 @@ class AppNetwork {
   late String fcmToken, device;
   String? acc, appcheck;
 
-  static AppNetwork init({required String baseUrl}) =>
-      _instance ??= AppNetwork._(Uri.parse(baseUrl));
+  static FutureOr<AppNetwork> init({required String baseUrl}) async {
+    if (_instance != null) return _instance!;
+    final fss = await FSS._instance.initialize();
+    final network = AppNetwork._(Uri.parse(baseUrl));
+    network._fss = fss;
+    return _instance = network;
+  }
 
   static const Map<String, String> defaultHeaders = {
     'Content-Type': 'application/json',
