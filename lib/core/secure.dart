@@ -137,8 +137,8 @@ class FSS {
   /// 모든 저장이 성공한 후에 access를 변경하여 Stream에 변경사항을 알립니다.
   Future<void> saveAll(Map<String, String> data) async {
     final keys = data.keys.toSet();
-    final allowed = AppSecurity.values.where((e) => !e.isProtected).toSet();
-    if (!allowed.containsAll(keys)) return;
+    final allowed = AppSecurity.inputs;
+    if (keys != allowed) return;
     final access = data.remove(_access);
     await _enqueue<void>(() async {
       return await _runWithRetry(() async {
@@ -152,8 +152,8 @@ class FSS {
   }
 
   Future<void> clear() async {
-    await _storage.delete(key: _refresh);
     await _storage.delete(key: _access);
+    await _storage.delete(key: _refresh);
   }
 
   Future<Map<String, String>> getUserProperty() async {

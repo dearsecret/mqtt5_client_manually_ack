@@ -53,8 +53,9 @@ class AppNetwork {
   /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
   late Future<String?> Function() getAppcheck, getRefresh;
 
-  /// Secure Storage에 저장합니다.
+  /// Secure Storage에 저장하거나 삭제합니다.
   late Future<void> Function(Map<String, String>) tokens;
+  Future<void> Function()? cleans;
 
   /// 에러를 반환 받습니다.
   Future<void> Function(Object error)? onError;
@@ -180,13 +181,15 @@ class AppNetwork {
           )
           .timeout(timeout);
       final statusCode = response.statusCode;
+      if (statusCode == 401) throw AppNetworkException.authErr;
       if (response.isSuccess)
         await tokens(
           Map<String, String>.from(jsonDecode(response.body)),
         ).then((_) => appcheck = token);
-      if (statusCode == 401) throw AppNetworkException.authErr;
       _refreshCompleter?.complete();
     } catch (e) {
+      if (e is AppNetworkException && e.isAuthErr && cleans != null)
+        await cleans?.call();
       _refreshCompleter!.completeError(e);
       rethrow;
     } finally {
