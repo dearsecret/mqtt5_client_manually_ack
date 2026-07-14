@@ -74,8 +74,12 @@ class AppNetwork {
   static FutureOr<AppNetwork> init({required String baseUrl}) async {
     if (_instance != null) return _instance!;
     final fss = await FSS._instance.initialize();
+    final (:acc, :device) = await fss.properties;
     final network = AppNetwork._(Uri.parse(baseUrl));
-    network._fss = fss;
+    network
+      .._fss = fss
+      ..acc = acc
+      ..device = device ?? await fss.getDevice;
     return _instance = network;
   }
 
