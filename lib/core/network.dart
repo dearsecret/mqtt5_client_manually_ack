@@ -198,10 +198,11 @@ class AppNetwork {
           .timeout(timeout);
       final statusCode = response.statusCode;
       if (statusCode == 401) throw AppNetworkException.authErr;
-      if (response.isSuccess)
-        await tokens(
-          Map<String, String>.from(jsonDecode(response.body)),
-        ).then((_) => appcheck = token);
+      if (response.isSuccess) {
+        final data = Map<String, String>.from(jsonDecode(response.body));
+        await tokens(data).then((_) => appcheck = token);
+        acc = data[AppSecurity.access.name];
+      }
       _refreshCompleter?.complete();
     } catch (e) {
       if (e is AppNetworkException && e.isAuthErr) await cleans.call();
