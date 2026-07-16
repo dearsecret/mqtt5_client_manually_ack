@@ -100,20 +100,12 @@ class FSS {
   }
 
   /// 모든 저장이 성공한 후에 access를 변경하여 Stream에 변경사항을 알립니다.
-  Future<void> saveAll(Map<String, String> data) async {
-    final keys = data.keys.toSet();
-    final allowed = AppSecurity.inputs;
-    if (keys != allowed) return;
-    final access = data.remove(_access);
-    await _enqueue<void>(() async {
-      return await _runWithRetry(() async {
-        await Future.wait(
-          data.entries
-              .map((k) => _storage.write(key: k.key, value: k.value))
-              .toList(),
-        ).then((_) async => await _storage.write(key: _access, value: access));
-      }, retryCount: 0);
-    });
+  Future<void> saveAll({
+    required String access,
+    required String refresh,
+  }) async {
+    await _storage.write(key: _refresh, value: refresh);
+    await _storage.write(key: _access, value: access);
   }
 
   Future<void> clear() async {

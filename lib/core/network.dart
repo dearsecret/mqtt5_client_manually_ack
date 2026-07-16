@@ -193,9 +193,13 @@ class AppNetwork {
       if (statusCode == 401) throw AppNetworkException.authErr;
       if (response.isSuccess) {
         final data = Map<String, String>.from(jsonDecode(response.body));
-        await FSS.instance.saveAll(data).then((_) => acc = data[FSS._access]);
-        appcheck = token;
+        if (AppSecurity.inputs == data.keys.toSet()) {
+          await FSS.instance
+              .saveAll(access: data[FSS._access]!, refresh: data[FSS._refresh]!)
+              .then((_) => acc = data[FSS._access]);
+        }
       }
+      appcheck = token;
       _refreshCompleter?.complete();
     } catch (e) {
       if (e is AppNetworkException && e.isAuthErr)
@@ -268,24 +272,15 @@ class AppNetwork {
 }
 
 extension Authentication on AppNetwork {
-  login(Map<String, String> data) async {
-    if (AppSecurity.inputs != data.keys.toSet()) return;
-    try {
-      await FSS.instance.saveAll(data).then((_) {
-        acc = data[FSS._access];
-      });
-    } finally {
-      notify(acc);
-    }
+  login({required String access, required String refresh}) async {
+    await FSS.instance
+        .saveAll(access: access, refresh: refresh)
+        .then((_) => acc = access);
+    notify(acc);
   }
 
   logout() async {
-    try {
-      await FSS.instance.clear().then((_) {
-        acc = null;
-      });
-    } finally {
-      notify(acc);
-    }
+    await FSS.instance.clear().then((_) => acc = null);
+    notify(acc);
   }
 }
