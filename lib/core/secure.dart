@@ -20,11 +20,8 @@ enum AppSecurity {
 class FSS {
   FSS._();
 
-  static final FSS _instance = FSS._();
-  static FSS get instance {
-    if (!(_completer?.isCompleted ?? true)) throw Exception("초기화에 실패하였습니다.");
-    return _instance;
-  }
+  static FSS? _instance;
+  static FSS get instance => _instance ??= FSS._();
 
   static const _maxRetries = 5;
   static Completer<FSS>? _completer;
@@ -33,10 +30,6 @@ class FSS {
   static String get _access => AppSecurity.access.name;
   static String get _refresh => AppSecurity.refresh.name;
 
-  static final StreamController<String?> _controller =
-      StreamController<String?>();
-  static StreamController<String?> get ctrl => _controller;
-
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
@@ -44,7 +37,7 @@ class FSS {
     ),
   );
 
-  Future<String?> get refreshToken async =>
+  Future<String?> get refreshToken =>
       _execute(() => _storage.read(key: _refresh));
 
   Future<String> get getEncryptionKey => _getOrInitSecureData(
@@ -58,32 +51,6 @@ class FSS {
     (str) => str,
     () => _generateSecureRandomKey(),
   );
-
-  FutureOr<FSS> initialize() async {
-    if (_completer?.isCompleted ?? false) return instance;
-    if (_completer != null) return await _completer!.future;
-    _completer = Completer<FSS>();
-    try {
-      int retryCount = 0;
-      while (true) {
-        try {
-          _storage
-            ..unregisterAllListeners()
-            ..registerListener(key: _access, listener: _controller.add);
-          _completer!.complete(instance);
-          return instance;
-        } catch (e) {
-          retryCount++;
-          if (retryCount >= _maxRetries) rethrow;
-          await Future.delayed(Duration(seconds: retryCount));
-        }
-      }
-    } catch (e) {
-      _completer!.completeError(e);
-      _completer = null;
-      rethrow;
-    }
-  }
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
       _enqueue(() => _runWithRetry(action, retryCount: retryCount));

@@ -41,45 +41,34 @@ class AppNetwork {
   AppNetwork._(this._baseUri);
   final Uri _baseUri;
   static Uri get baseUri => instance._baseUri;
+
   static AppNetwork? _instance;
-
-  static const version = '/api/v1';
-  final http.Client _client = http.Client();
-  static const maxRetries = 2;
-  static const Duration timeout = Duration(seconds: 10);
-
   static AppNetwork get instance {
     if (_instance == null) throw StateError("네트워크가 초기화되지 않았습니다.");
     return _instance!;
   }
 
-  /// 외부 유틸리티로 부터 유효한 토큰을 받습니다.
+  static const version = '/api/v1';
+  final http.Client _client = http.Client();
+
+  static const maxRetries = 2;
+  static const Duration timeout = Duration(seconds: 10);
+
   late Future<String?> Function() getAppcheck;
 
-  /// Secure Storage를 대상으로 읽기 또는 저장하거나 삭제합니다.
-  late final FSS _fss;
-  late final Future<void> Function(Map<String, String>) tokens =
-      (d) async => await _fss.saveAll(d);
-  late final Future<void> Function() cleans = () async => await _fss.clear();
-  late final Future<String?> Function() getRefresh =
-      () async => await FSS.instance.refreshToken();
-
-  /// 에러를 반환 받습니다.
-  Future<void> Function(Object error)? onError;
-
   /// 생성 전 할당 필수
+  static late void Function(String?) notify;
   late String fcmToken, device;
+
   String? acc, appcheck;
 
   static FutureOr<AppNetwork> init({required String baseUrl}) async {
     if (_instance != null) return _instance!;
-    final fss = await FSS._instance.initialize();
-    final (:acc, :device) = await fss.properties;
+    final (:acc, :device) = await FSS.instance.properties;
     final network = AppNetwork._(Uri.parse(baseUrl));
     network
-      .._fss = fss
       ..acc = acc
-      ..device = device ?? await fss.getDevice;
+      ..device = device ?? await FSS.instance.getDevice;
     return _instance = network;
   }
 
@@ -174,7 +163,6 @@ class AppNetwork {
       // └── TlsException (SSL/TLS 보안 프로토콜 관련 총괄 실패)
       //       ├── HandshakeException (암호화 연결 악수 단계 실패 - 버전 불일치 등)
       //       └── CertificateException (인증서 만료, 신뢰할 수 없는 사설 인증서 등)
-      if (onError != null) onError!(e);
       rethrow;
     }
   }
@@ -186,7 +174,7 @@ class AppNetwork {
     try {
       final uri = _buildUri('/auth/refresh');
       final token = await getAppcheck();
-      final refresh = await getRefresh();
+      final refresh = await FSS.instance.refreshToken();
       if (token == null) throw AppNetworkException.appcheckErr;
       if (refresh == null) throw AppNetworkException.authErr;
       final response = await _client
@@ -200,12 +188,14 @@ class AppNetwork {
       if (statusCode == 401) throw AppNetworkException.authErr;
       if (response.isSuccess) {
         final data = Map<String, String>.from(jsonDecode(response.body));
-        await tokens(data).then((_) => appcheck = token);
+        await FSS.instance.saveAll(data).then((_) => appcheck = token);
         acc = data[AppSecurity.access.name];
+        notify(acc);
       }
       _refreshCompleter?.complete();
     } catch (e) {
-      if (e is AppNetworkException && e.isAuthErr) await cleans.call();
+      if (e is AppNetworkException && e.isAuthErr)
+        await FSS.instance.clear().then((_) => notify(null));
       _refreshCompleter!.completeError(e);
       rethrow;
     } finally {
