@@ -57,7 +57,7 @@ class AppNetwork {
   late Future<String?> Function() getAppcheck;
 
   /// 생성 전 할당 필수
-  static late void Function(String?) notify;
+  late void Function(String?) notify;
   late String fcmToken, device;
 
   String? acc, appcheck;
