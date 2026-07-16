@@ -49,6 +49,11 @@ class AppNetwork {
   }
 
   static const version = '/api/v1';
+
+  // static const _logIn = "/auth/login";
+  // static const _logOut = "/auth/logout";
+  // static const _auth = "/auth/refresh";
+
   final http.Client _client = http.Client();
 
   static const maxRetries = 2;
@@ -164,12 +169,12 @@ class AppNetwork {
       //       ├── HandshakeException (암호화 연결 악수 단계 실패 - 버전 불일치 등)
       //       └── CertificateException (인증서 만료, 신뢰할 수 없는 사설 인증서 등)
       rethrow;
-    }
+    } finally {}
   }
 
   Future<void> refreshes() async {
     if (_refreshCompleter?.isCompleted ?? false)
-      return await _refreshCompleter!.future.timeout(timeout);
+      return _refreshCompleter!.future.timeout(timeout);
     _refreshCompleter = Completer<void>();
     try {
       final uri = _buildUri('/auth/refresh');
@@ -188,17 +193,19 @@ class AppNetwork {
       if (statusCode == 401) throw AppNetworkException.authErr;
       if (response.isSuccess) {
         final data = Map<String, String>.from(jsonDecode(response.body));
-        await FSS.instance.saveAll(data).then((_) => appcheck = token);
-        acc = data[AppSecurity.access.name];
-        notify(acc);
+        await FSS.instance
+            .saveAll(data)
+            .then((_) => acc = data[AppSecurity.access.name]);
+        appcheck = token;
       }
       _refreshCompleter?.complete();
     } catch (e) {
       if (e is AppNetworkException && e.isAuthErr)
-        await FSS.instance.clear().then((_) => notify(null));
+        await FSS.instance.clear().then((_) => acc = null);
       _refreshCompleter!.completeError(e);
       rethrow;
     } finally {
+      notify(acc);
       _refreshCompleter = null;
     }
   }
