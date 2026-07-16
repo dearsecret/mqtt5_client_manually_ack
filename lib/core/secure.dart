@@ -23,8 +23,6 @@ class FSS {
   static FSS? _instance;
   static FSS get instance => _instance ??= FSS._();
 
-  static const _maxRetries = 5;
-  static Completer<FSS>? _completer;
   static final List<Completer<void>> _queue = [];
 
   static String get _access => AppSecurity.access.name;
