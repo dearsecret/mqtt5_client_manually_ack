@@ -272,14 +272,14 @@ class AppNetwork {
 }
 
 extension Authentication on AppNetwork {
-  login({required String access, required String refresh}) async {
+  Future<void> login({required String access, required String refresh}) async {
     await FSS.instance
         .saveAll(access: access, refresh: refresh)
         .then((_) => acc = access);
     notify(acc);
   }
 
-  logout() async {
+  Future<void> logout() async {
     await FSS.instance.clear().then((_) => acc = null);
     notify(acc);
   }
