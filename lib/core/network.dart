@@ -59,13 +59,12 @@ class AppNetwork {
   static const maxRetries = 2;
   static const Duration timeout = Duration(seconds: 10);
 
-  late Future<String?> Function(bool) getAppcheck;
-
   /// 생성 전 할당 필수
+  late Future<String?> Function(bool) getAttestToken;
   late void Function(String?) notify;
   late String fcmToken, device;
 
-  String? acc, appcheck;
+  String? acc, _appcheck;
 
   static FutureOr<AppNetwork> init({required String baseUrl}) async {
     if (_instance != null) return _instance!;
@@ -86,7 +85,7 @@ class AppNetwork {
     ...defaultHeaders,
     if (acc == null) 'X-DEVICE-ID': device,
     if (acc != null) 'Authorization': 'Bearer $acc',
-    if (appcheck != null) 'X-Firebase-AppCheck': appcheck!,
+    if (_appcheck != null) 'X-Firebase-AppCheck': _appcheck!,
     if (includeFcm) 'X-DEVICE-TOKEN': fcmToken,
   };
 
@@ -126,6 +125,7 @@ class AppNetwork {
     T Function(dynamic json)? decoder,
   }) async {
     try {
+      _appcheck ??= await getAttestToken(false);
       final encodedBody = body != null ? jsonEncode(body) : null;
       Future<http.Response> requestFn() async {
         final uri = _buildUri(path, queryParameters: queryParameters);
@@ -178,7 +178,7 @@ class AppNetwork {
     _refreshCompleter = Completer<void>();
     try {
       final uri = _buildUri('/auth/refresh');
-      final token = await getAppcheck(true);
+      final token = await getAttestToken(true);
       final refresh = await FSS.instance.refreshToken();
       if (token == null) throw AppNetworkException.appcheckErr;
       if (refresh == null) throw AppNetworkException.authErr;
@@ -199,7 +199,7 @@ class AppNetwork {
               .then((_) => acc = data[FSS._access]);
         }
       }
-      appcheck = token;
+      _appcheck = token;
       _refreshCompleter?.complete();
     } catch (e) {
       if (e is AppNetworkException && e.isAuthErr)
