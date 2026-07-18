@@ -59,7 +59,7 @@ class AppNetwork {
   static const maxRetries = 2;
   static const Duration timeout = Duration(seconds: 10);
 
-  late Future<String?> Function() getAppcheck;
+  late Future<String?> Function(bool) getAppcheck;
 
   /// 생성 전 할당 필수
   late void Function(String?) notify;
@@ -178,7 +178,7 @@ class AppNetwork {
     _refreshCompleter = Completer<void>();
     try {
       final uri = _buildUri('/auth/refresh');
-      final token = await getAppcheck();
+      final token = await getAppcheck(true);
       final refresh = await FSS.instance.refreshToken();
       if (token == null) throw AppNetworkException.appcheckErr;
       if (refresh == null) throw AppNetworkException.authErr;
