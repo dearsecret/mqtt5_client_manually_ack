@@ -61,10 +61,11 @@ class AppNetwork {
 
   /// 생성 전 할당 필수
   late Future<String?> Function(bool) getAttestToken;
+  late Future<String?> Function() getMessagingToken;
   late void Function(String?) notify;
-  late String fcmToken, device;
+  late String device;
 
-  String? acc, _appcheck;
+  String? acc, _attestToken, _messagingToken;
 
   static FutureOr<AppNetwork> init({required String baseUrl}) async {
     if (_instance != null) return _instance!;
@@ -85,8 +86,9 @@ class AppNetwork {
     ...defaultHeaders,
     if (acc == null) 'X-DEVICE-ID': device,
     if (acc != null) 'Authorization': 'Bearer $acc',
-    if (_appcheck != null) 'X-Firebase-AppCheck': _appcheck!,
-    if (includeFcm) 'X-DEVICE-TOKEN': fcmToken,
+    if (_attestToken != null) 'X-Firebase-AppCheck': _attestToken!,
+    if (includeFcm && _messagingToken != null)
+      'X-DEVICE-TOKEN': _messagingToken!,
   };
 
   Completer<void>? _refreshCompleter;
@@ -125,7 +127,8 @@ class AppNetwork {
     T Function(dynamic json)? decoder,
   }) async {
     try {
-      _appcheck ??= await getAttestToken(false);
+      _attestToken ??= await getAttestToken(false);
+      _messagingToken ??= await getMessagingToken();
       final encodedBody = body != null ? jsonEncode(body) : null;
       Future<http.Response> requestFn() async {
         final uri = _buildUri(path, queryParameters: queryParameters);
@@ -199,7 +202,7 @@ class AppNetwork {
               .then((_) => acc = data[FSS._access]);
         }
       }
-      _appcheck = token;
+      _attestToken = token;
       _refreshCompleter?.complete();
     } catch (e) {
       if (e is AppNetworkException && e.isAuthErr)
