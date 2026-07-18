@@ -128,8 +128,11 @@ class AppNetwork {
     T Function(dynamic json)? decoder,
   }) async {
     try {
-      _attestToken ??= await getAttestToken(false);
-      _messagingToken ??= await getMessagingToken();
+      await isConnected;
+      _messagingToken ??= await getMessagingToken().then((t) async {
+        _attestToken ??= await getAttestToken(false);
+        return t;
+      });
       final encodedBody = body != null ? jsonEncode(body) : null;
       Future<http.Response> requestFn() async {
         final uri = _buildUri(path, queryParameters: queryParameters);
