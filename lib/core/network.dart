@@ -62,7 +62,7 @@ class AppNetwork {
   /// 생성 전 할당 필수
   late Future<String?> Function(bool) getAttestToken;
   late Future<String?> Function() getMessagingToken;
-  late Future<bool> isConnected;
+  late Future<bool> Function() isConnected;
   late void Function(String?) notify;
   late String device;
 
