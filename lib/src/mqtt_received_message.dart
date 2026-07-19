@@ -18,3 +18,23 @@ class MqttReceivedMessage<T> {
   /// Initializes a new instance of an MqttReceivedMessage class.
   MqttReceivedMessage(this.topic, this.payload);
 }
+
+extension MqttReceivedMessageX on MqttReceivedMessage<MqttMessage> {
+  MqttPublishMessage? get publishMessage =>
+      payload is MqttPublishMessage ? payload as MqttPublishMessage : null;
+
+  String? get payloadString {
+    final msg = publishMessage;
+    if (msg?.payload.message == null) return null;
+    return MqttUtilities.bytesToStringAsString(msg!.payload.message!);
+  }
+
+  void ack(MqttClient client) {
+    final msg = publishMessage;
+    if (msg != null && msg.header?.qos != MqttQos.atMostOnce) {
+      client.publishingManager?.acknowledgeQos1Message(
+        msg.variableHeader!.messageIdentifier,
+      );
+    }
+  }
+}
