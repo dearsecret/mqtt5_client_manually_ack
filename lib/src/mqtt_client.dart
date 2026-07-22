@@ -16,7 +16,7 @@ typedef DisconnectCallback = void Function();
 typedef ConnectCallback = void Function();
 
 /// The client auto reconnect callback type
-typedef AutoReconnectCallback = FutureOr<void> Function();
+typedef AutoReconnectCallback = void Function();
 
 /// The client auto reconnect complete callback type
 typedef AutoReconnectCompleteCallback = void Function();
