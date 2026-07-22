@@ -277,6 +277,10 @@ class MqttClient {
     publishingManager?.manuallyAcknowledgeQos1 = value;
   }
 
+  bool get isSessionPresent =>
+      connectionStatus?.connectAckMessage.variableHeader?.sessionPresent ??
+      false;
+
   /// The stream on which all subscribed topic updates are published to
   Stream<List<MqttReceivedMessage<MqttMessage>>> get updates =>
       subscriptionsManager!.subscriptionNotifier;
