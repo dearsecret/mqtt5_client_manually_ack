@@ -28,13 +28,4 @@ extension MqttReceivedMessageX on MqttReceivedMessage<MqttMessage> {
     if (msg?.payload.message == null) return null;
     return MqttUtilities.bytesToStringAsString(msg!.payload.message!);
   }
-
-  void ack(MqttClient client) {
-    final msg = publishMessage;
-    if (msg != null && msg.header?.qos != MqttQos.atMostOnce) {
-      client.publishingManager?.acknowledgeQos1Message(
-        msg.variableHeader!.messageIdentifier,
-      );
-    }
-  }
 }
