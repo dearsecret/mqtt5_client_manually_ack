@@ -26,6 +26,9 @@ typedef AutoReconnectCompleteCallback = void Function();
 typedef FailedConnectionAttemptCallback =
     FutureOr<void> Function(int attemptNumber);
 
+typedef SubscriptionManagerCreatedCallback =
+    void Function(MqttSubscriptionManager manager);
+
 /// A client class for interacting with MQTT Data Packets.
 /// Do not instantiate this class directly, instead instantiate
 /// either a [MqttClientServer] class or an [MqttBrowserClient] as needed.
@@ -270,6 +273,7 @@ class MqttClient {
   @protected
   events.EventBus? clientEventBus;
 
+  SubscriptionManagerCreatedCallback? onSubscriptionManagerCreated;
   bool _manuallyAcknowledgeQos1 = false;
   bool get manuallyAcknowledgeQos1 => _manuallyAcknowledgeQos1;
   set manuallyAcknowledgeQos1(bool value) {
@@ -324,6 +328,7 @@ class MqttClient {
     subscriptionsManager!.onSubscribeFail = onSubscribeFail;
     subscriptionsManager!.resubscribeOnAutoReconnect =
         resubscribeOnAutoReconnect;
+    onSubscriptionManagerCreated?.call(subscriptionsManager!);
     if (keepAlivePeriod > MqttConstants.defaultKeepAlive) {
       MqttLogger.log(
         'Mqtt5Client::connect - keep alive is enabled with a value of $keepAlivePeriod seconds',
