@@ -15,6 +15,8 @@ class MqttReceivedMessage<T> {
   /// The payload of the message received.
   T payload;
 
+  void Function()? ack;
+
   /// Initializes a new instance of an MqttReceivedMessage class.
   MqttReceivedMessage(this.topic, this.payload);
 }
