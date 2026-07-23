@@ -44,7 +44,8 @@ class MqttPublishingManager {
   bool manuallyAcknowledgeQos1 = false;
   final pendingQos1Messages = <int, MqttPublishMessage>{};
 
-  void acknowledgeQos1Message(int packetId) {
+  void acknowledgeQos1Message(int? packetId) {
+    if (packetId == null) return;
     final message = pendingQos1Messages.remove(packetId);
     if (message == null) return;
     final ackMsg = MqttPublishAckMessage()
