@@ -283,6 +283,15 @@ class MqttClient {
     publishingManager?.manuallyAcknowledgeQos1 = value;
   }
 
+  Completer<void>? _readyCompleter;
+  Future<void> get ready => (_readyCompleter ??= Completer<void>()).future;
+  void markReady() {
+    final completer = _readyCompleter ??= Completer<void>();
+    if (!completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
   bool get isSessionPresent =>
       connectionStatus?.connectAckMessage.variableHeader?.sessionPresent ??
       false;
