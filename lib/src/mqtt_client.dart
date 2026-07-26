@@ -284,12 +284,12 @@ class MqttClient {
   }
 
   Completer<void>? _readyCompleter;
+  bool get isReady => _readyCompleter?.isCompleted ?? false;
   Future<void> get ready => (_readyCompleter ??= Completer<void>()).future;
+
   void markReady() {
     final completer = _readyCompleter ??= Completer<void>();
-    if (!completer.isCompleted) {
-      completer.complete();
-    }
+    if (!completer.isCompleted) completer.complete();
   }
 
   bool get isSessionPresent =>
