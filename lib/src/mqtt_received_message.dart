@@ -33,16 +33,13 @@ extension MqttReceivedMessageX on MqttReceivedMessage<MqttMessage> {
     return MqttUtilities.bytesToStringAsString(msg!.payload.message!);
   }
 
-  T? decodedPayload<T>() {
+  Object? get decodedPayload {
     final str = payloadString;
     if (str == null) return null;
     try {
-      final decoded = jsonDecode(str);
-      if (decoded is T) return decoded;
-      return null;
-    } on FormatException {
-      if (str is T) return str as T;
-      return null;
+      return jsonDecode(str);
+    } on FormatException catch (_) {
+      return str;
     }
   }
 }
