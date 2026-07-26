@@ -36,10 +36,6 @@ extension MqttReceivedMessageX on MqttReceivedMessage<MqttMessage> {
   Object? get decodedPayload {
     final str = payloadString;
     if (str == null) return null;
-    try {
-      return jsonDecode(str);
-    } on FormatException catch (_) {
-      return str;
-    }
+    return jsonDecode(str);
   }
 }
