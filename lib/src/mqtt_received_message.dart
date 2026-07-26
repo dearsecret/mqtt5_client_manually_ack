@@ -32,4 +32,10 @@ extension MqttReceivedMessageX on MqttReceivedMessage<MqttMessage> {
     if (msg?.payload.message == null) return null;
     return MqttUtilities.bytesToStringAsString(msg!.payload.message!);
   }
+
+  Object? get payloadJson {
+    final str = payloadString;
+    if (str == null) return null;
+    return jsonDecode(str);
+  }
 }
