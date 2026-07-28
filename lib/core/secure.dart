@@ -44,11 +44,15 @@ class FSS {
     () => _generateSecureRandomKey(),
   );
 
-  Future<String> get getDevice => _getOrInitSecureData(
-    AppSecurity.encrypt,
-    (str) => str,
-    () => _generateSecureRandomKey(),
-  );
+  Future<String> get getDevice async {
+    final stored = await _storage.read(key: AppSecurity.device.name);
+    if (stored != null) return stored;
+    final device =
+        await UniqueDeviceIdentifier.getUniqueIdentifier() ??
+        _generateSecureRandomKey();
+    await _storage.write(key: AppSecurity.device.name, value: device);
+    return device;
+  }
 
   Future<T> _execute<T>(Future<T> Function() action, {int retryCount = 0}) =>
       _enqueue(() => _runWithRetry(action, retryCount: retryCount));
@@ -114,14 +118,18 @@ class FSS {
   }
 
   Future<Map<String, String>> getUserProperty() async {
+    final deviceKey = AppSecurity.device.name;
     final data = await _storage.readAll();
     final storageKeys = data.keys.toSet();
+    if (data[deviceKey] == null) {
+      data[deviceKey] = await getDevice;
+    }
     if (storageKeys.containsAll(AppSecurity.inputs))
       return Map<String, String>.from(data)
         ..removeWhere((k, _) => AppSecurity.values.byName(k).hidden);
     if (storageKeys.contains(_access)) await clear();
     return Map<String, String>.from({
-      if (storageKeys.contains(AppSecurity.device.name))
+      if (storageKeys.contains(deviceKey))
         AppSecurity.device.name: data[AppSecurity.device.name],
     });
   }

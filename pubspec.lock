@@ -600,6 +600,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  unique_device_identifier:
+    dependency: "direct main"
+    description:
+      name: unique_device_identifier
+      sha256: "1a097d18cebeb890451665b4336f851736464b9a0517d202ceb50c284a32b516"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.4"
   uuid:
     dependency: transitive
     description:
