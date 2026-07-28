@@ -64,7 +64,7 @@ class AppNetwork {
   late Future<String?> Function() getMessagingToken;
   late Future<bool> Function() isConnected;
   late void Function(String?) notify;
-  late String device;
+  late String? device;
 
   String? acc, _attestToken, _messagingToken;
 
@@ -85,7 +85,7 @@ class AppNetwork {
 
   Map<String, String> _buildHeaders(bool includeFcm) => {
     ...defaultHeaders,
-    if (acc == null) 'X-DEVICE-ID': device,
+    if (acc == null && device != null) 'X-DEVICE-ID': device!,
     if (acc != null) 'Authorization': 'Bearer $acc',
     if (_attestToken != null) 'X-Firebase-AppCheck': _attestToken!,
     if (includeFcm && _messagingToken != null)
@@ -192,7 +192,10 @@ class AppNetwork {
       final response = await _client
           .post(
             uri,
-            headers: {'X-Device-Id': device, 'X-Firebase-AppCheck': token},
+            headers: {
+              if (device != null) 'X-DEVICE-ID': device!,
+              'X-Firebase-AppCheck': token,
+            },
             body: jsonEncode({'refresh': refresh}),
           )
           .timeout(timeout);
