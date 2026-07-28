@@ -74,7 +74,7 @@ class AppNetwork {
     final network = AppNetwork._(Uri.parse(baseUrl));
     network
       ..acc = acc
-      ..device = device ?? await FSS.instance.getDevice;
+      ..device = device;
     return _instance = network;
   }
 
@@ -128,6 +128,7 @@ class AppNetwork {
     T Function(dynamic json)? decoder,
   }) async {
     try {
+      device ??= await FSS.instance.getDevice;
       await isConnected;
       _messagingToken ??= await getMessagingToken().then((t) async {
         _attestToken ??= await getAttestToken(false);
