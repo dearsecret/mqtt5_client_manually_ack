@@ -127,7 +127,7 @@ class MqttServerClient extends MqttClient {
 
   void markReady() {
     if (!(_readyCompleter ??= Completer<void>()).isCompleted)
-      _readyCompleter?.complete(this);
+      _readyCompleter?.complete();
   }
 
   MqttPublishingManager? get publishingManager => super.publishingManager;
