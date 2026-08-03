@@ -121,15 +121,16 @@ class MqttServerClient extends MqttClient {
     return await super.connect(username, password);
   }
 
-  Completer<MqttServerClient>? _readyCompleter;
+  Completer<void>? _readyCompleter;
   bool get isReady => _readyCompleter?.isCompleted ?? false;
-  Future<void> get ready =>
-      (_readyCompleter ??= Completer<MqttServerClient>()).future;
+  Future<void> get ready => (_readyCompleter ??= Completer<void>()).future;
 
   void markReady() {
-    if (!(_readyCompleter ??= Completer<MqttServerClient>()).isCompleted)
+    if (!(_readyCompleter ??= Completer<void>()).isCompleted)
       _readyCompleter?.complete(this);
   }
 
   MqttPublishingManager? get publishingManager => super.publishingManager;
+  Map<String?, MqttSubscription>? get subscriptions =>
+      super.subscriptionsManager?.subscriptions;
 }
