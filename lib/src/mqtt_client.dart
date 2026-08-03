@@ -288,8 +288,8 @@ class MqttClient {
   Future<void> get ready => (_readyCompleter ??= Completer<void>()).future;
 
   void markReady() {
-    final completer = _readyCompleter ??= Completer<void>();
-    if (!completer.isCompleted) completer.complete();
+    if (!(_readyCompleter ??= Completer<void>()).isCompleted)
+      _readyCompleter?.complete();
   }
 
   bool get isSessionPresent =>
