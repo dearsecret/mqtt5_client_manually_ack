@@ -121,5 +121,14 @@ class MqttServerClient extends MqttClient {
     return await super.connect(username, password);
   }
 
+  Completer<void>? _readyCompleter;
+  bool get isReady => _readyCompleter?.isCompleted ?? false;
+  Future<void> get ready => (_readyCompleter ??= Completer<void>()).future;
+
+  void markReady() {
+    if (!(_readyCompleter ??= Completer<void>()).isCompleted)
+      _readyCompleter?.complete();
+  }
+
   MqttPublishingManager? get publishingManager => super.publishingManager;
 }
